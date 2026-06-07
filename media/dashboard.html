@@ -202,7 +202,7 @@
         el.title = path;
         src.appendChild(el);
       };
-      add('Copilot', d.sources.copilot.active, d.sources.copilot.path);
+      add('Copilot', d.sources.copilot.active, d.sources.copilot.path + (d.sources.copilot.active ? ' · Chat.log' : ''));
       add('Claude', d.sources.claude.active, d.sources.claude.path);
 
       const models = document.getElementById('models');

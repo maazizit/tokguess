@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getContextBudgetSnapshot } from '../contextBudget';
 import { UsageStore } from '../storage/usageStore';
+import { CopilotLogWatcher } from '../watchers/copilotLogWatcher';
 import { CopilotWatcher } from '../watchers/copilotWatcher';
 import { ClaudeWatcher } from '../watchers/claudeWatcher';
 
@@ -15,6 +16,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri,
     private readonly store: UsageStore,
     private readonly copilot: CopilotWatcher,
+    private readonly copilotLog: CopilotLogWatcher,
     private readonly claude: ClaudeWatcher,
     private readonly getFileEstimate: () => number
   ) {
@@ -64,8 +66,10 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     const payload = this.store.buildDashboard(this.period, budget.fileTokens, {
       copilot: {
         enabled: config.get<boolean>('sources.copilot.enabled', true),
-        path: this.copilot.path,
-        active: this.copilot.isActive()
+        path: this.copilot.isActive()
+          ? this.copilot.path
+          : this.copilotLog.path + ' (Chat.log)',
+        active: this.copilot.isActive() || this.copilotLog.isActive()
       },
       claude: {
         enabled: config.get<boolean>('sources.claude.enabled', true),

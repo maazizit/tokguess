@@ -5,6 +5,7 @@ import { estimateTokensFromText } from './estimator';
 import { StatusBarController } from './statusBar';
 import { UsageStore } from './storage/usageStore';
 import { ClaudeWatcher } from './watchers/claudeWatcher';
+import { CopilotLogWatcher } from './watchers/copilotLogWatcher';
 import { CopilotWatcher } from './watchers/copilotWatcher';
 
 let store: UsageStore;
@@ -12,6 +13,7 @@ let statusBar: StatusBarController;
 let dashboard: DashboardProvider;
 let budgetAlerts: ContextBudgetAlerts;
 let copilotWatcher: CopilotWatcher;
+let copilotLogWatcher: CopilotLogWatcher;
 let claudeWatcher: ClaudeWatcher;
 let enabled = true;
 
@@ -36,6 +38,7 @@ export function activate(context: vscode.ExtensionContext): void {
   store = new UsageStore(context);
   budgetAlerts = new ContextBudgetAlerts();
   copilotWatcher = new CopilotWatcher(config().get('sources.copilot.path'));
+  copilotLogWatcher = new CopilotLogWatcher(config().get('sources.copilot.logPath'));
   claudeWatcher = new ClaudeWatcher(config().get('sources.claude.path'));
 
   statusBar = new StatusBarController(store);
@@ -43,6 +46,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.extensionUri,
     store,
     copilotWatcher,
+    copilotLogWatcher,
     claudeWatcher,
     getFileEstimate
   );
@@ -58,6 +62,10 @@ export function activate(context: vscode.ExtensionContext): void {
   if (config().get('sources.copilot.enabled', true)) {
     copilotWatcher.onEvent(ingest);
     copilotWatcher.activate(context);
+    if (config().get('sources.copilot.logWatcher', true)) {
+      copilotLogWatcher.onEvent(ingest);
+      copilotLogWatcher.activate(context);
+    }
   }
 
   if (config().get('sources.claude.enabled', true)) {
@@ -72,6 +80,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('tokguess.rescan', async () => {
       await store.rescan();
       copilotWatcher.rescan();
+      copilotLogWatcher.rescan();
       claudeWatcher.rescan();
       refreshUi();
       void vscode.window.showInformationMessage('TokGuess: logs rescanned');
@@ -105,6 +114,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   copilotWatcher?.dispose();
+  copilotLogWatcher?.dispose();
   claudeWatcher?.dispose();
   budgetAlerts?.dispose();
   statusBar?.dispose();
