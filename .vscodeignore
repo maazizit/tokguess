@@ -1,0 +1,7 @@
+.vscode/**
+src/**
+tsconfig.json
+.gitignore
+QUICKSTART.md
+INSTALL.md
+**/*.map

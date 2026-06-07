@@ -1,0 +1,68 @@
+{
+  "name": "tokguess-copilot",
+  "displayName": "TokGuess for Copilot",
+  "description": "Local token estimates for GitHub Copilot Chat — zero deps, zero tracking, 100% offline",
+  "version": "0.1.0",
+  "publisher": "maazizit",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "github copilot",
+    "tokens",
+    "estimate",
+    "tokguess",
+    "gpt-4"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "tokguess.toggle",
+        "title": "Toggle TokGuess",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.countCurrentFile",
+        "title": "Count Tokens (Copilot estimate)",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.showStats",
+        "title": "Show Token Stats",
+        "category": "TokGuess"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "tokguess.countCurrentFile",
+        "key": "ctrl+shift+t",
+        "mac": "ctrl+shift+t",
+        "when": "editorFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/maazizit/tokguess.git"
+  },
+  "license": "MIT"
+}
