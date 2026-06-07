@@ -87,6 +87,12 @@
     .dot-copilot { background: var(--copilot); }
     .dot-claude { background: var(--claude); }
     .footer { margin-top: 14px; font-size: 10px; color: var(--muted); text-align: center; }
+    .budget-meter { margin-top: 10px; height: 10px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
+    .budget-fill { height: 100%; border-radius: 99px; transition: width .3s ease; }
+    .budget-fill.ok { background: linear-gradient(90deg, var(--copilot), #7ee8b5); }
+    .budget-fill.warn { background: linear-gradient(90deg, #f9e2af, #fab387); }
+    .budget-fill.over { background: linear-gradient(90deg, #f38ba8, #eba0ac); }
+    .budget-meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--muted); }
     @media (max-width: 700px) { .hero { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -136,10 +142,15 @@
       <div class="sessions" id="sessions"></div>
     </div>
 
-    <div class="card">
-      <div class="label">Open file estimate</div>
-      <div class="value sm" id="fileEst">~0 tok</div>
-      <div class="sub" style="margin-top:6px">Pre-send estimate for active editor (chars ÷ 4.2)</div>
+    <div class="card" id="budgetCard">
+      <div class="label">Context Budget</div>
+      <div class="value sm" id="budgetValue">~0 / 32k tok</div>
+      <div class="budget-meter"><div class="budget-fill ok" id="budgetFill" style="width:0%"></div></div>
+      <div class="budget-meta">
+        <span id="budgetDetail">File + selection estimate</span>
+        <span id="budgetPct">0%</span>
+      </div>
+      <div class="sub" style="margin-top:8px" id="budgetHint">Pre-send check before Copilot / Claude · chars ÷ 4.2</div>
     </div>
   </div>
 
@@ -180,7 +191,7 @@
       document.getElementById('input').textContent = fmtTok(p.inputTokens);
       document.getElementById('output').textContent = fmtTok(p.outputTokens);
       document.getElementById('cache').textContent = fmtTok(p.cacheReadTokens);
-      document.getElementById('fileEst').textContent = '~'+fmtTok(d.fileEstimate)+' tok';
+      renderBudget(d.contextBudget);
 
       const src = document.getElementById('sources');
       src.innerHTML = '';
@@ -218,6 +229,31 @@
       drawChart(hourly);
       const when = d.lastIngest ? new Date(d.lastIngest).toLocaleString() : 'never';
       document.getElementById('footer').textContent = `Last ingest: ${when} · ${p.events} events · pricing = public API rates (approx.)`;
+    }
+
+    function renderBudget(b) {
+      if (!b || b.level === 'idle') {
+        document.getElementById('budgetValue').textContent = '—';
+        document.getElementById('budgetFill').style.width = '0%';
+        document.getElementById('budgetDetail').textContent = 'Open a file';
+        document.getElementById('budgetPct').textContent = '';
+        document.getElementById('budgetHint').textContent = 'Context Budget alerts before you send to AI';
+        return;
+      }
+      const pct = Math.min(b.percent, 100);
+      document.getElementById('budgetValue').textContent = '~'+fmtTok(b.contextTokens)+' / '+fmtTok(b.threshold)+' tok';
+      const fill = document.getElementById('budgetFill');
+      fill.style.width = pct + '%';
+      fill.className = 'budget-fill ' + (b.level === 'over' ? 'over' : b.level === 'warn' ? 'warn' : 'ok');
+      document.getElementById('budgetPct').textContent = b.percent + '%';
+      document.getElementById('budgetDetail').textContent = b.hasSelection
+        ? b.fileName + ' · file ~'+fmtTok(b.fileTokens)+' + sel ~'+fmtTok(b.selectionTokens)
+        : b.fileName + ' · full file';
+      document.getElementById('budgetHint').textContent = b.level === 'over'
+        ? '🔴 Over budget — trim before sending'
+        : b.level === 'warn'
+          ? '🟡 Near limit — consider narrowing selection'
+          : '🟢 Within budget';
     }
 
     function bucketHourly(period) {

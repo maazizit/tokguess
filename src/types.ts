@@ -53,6 +53,16 @@ export interface DashboardPayload {
     lastSeen: number;
   }>;
   fileEstimate: number;
+  contextBudget?: {
+    fileTokens: number;
+    selectionTokens: number;
+    contextTokens: number;
+    threshold: number;
+    percent: number;
+    level: string;
+    hasSelection: boolean;
+    fileName: string;
+  };
   liveCopilotOutput: number;
   lastIngest: number | null;
   sources: {

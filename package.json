@@ -1,8 +1,8 @@
 {
   "name": "tokguess-copilot",
   "displayName": "TokGuess",
-  "description": "Track Copilot & Claude token usage from local session logs + file estimates. Beautiful dashboard, zero cloud.",
-  "version": "0.2.1",
+  "description": "Track Copilot & Claude tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
+  "version": "0.3.0",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"
@@ -23,7 +23,9 @@
     "estimate",
     "tokguess",
     "dashboard",
-    "cost"
+    "cost",
+    "context",
+    "budget"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -66,8 +68,13 @@
         "category": "TokGuess"
       },
       {
+        "command": "tokguess.checkBudget",
+        "title": "Check Context Budget",
+        "category": "TokGuess"
+      },
+      {
         "command": "tokguess.countCurrentFile",
-        "title": "Count File Tokens (estimate)",
+        "title": "Check Context Budget",
         "category": "TokGuess"
       },
       {
@@ -105,6 +112,28 @@
           "type": "string",
           "default": "",
           "description": "Custom Claude logs root path (empty = default)"
+        },
+        "tokguess.budget.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show Context Budget in status bar and dashboard"
+        },
+        "tokguess.budget.threshold": {
+          "type": "number",
+          "default": 32000,
+          "description": "Max estimated tokens before send alert (default 32k)"
+        },
+        "tokguess.budget.warnPercent": {
+          "type": "number",
+          "default": 75,
+          "minimum": 50,
+          "maximum": 99,
+          "description": "Warn when context reaches this % of threshold"
+        },
+        "tokguess.budget.alerts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show popup when approaching or exceeding budget"
         }
       }
     }

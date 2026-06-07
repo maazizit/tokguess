@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { ContextBudgetAlerts } from './contextBudget';
 import { DashboardProvider } from './dashboard/DashboardProvider';
 import { estimateTokensFromText } from './estimator';
 import { StatusBarController } from './statusBar';
@@ -9,6 +10,7 @@ import { CopilotWatcher } from './watchers/copilotWatcher';
 let store: UsageStore;
 let statusBar: StatusBarController;
 let dashboard: DashboardProvider;
+let budgetAlerts: ContextBudgetAlerts;
 let copilotWatcher: CopilotWatcher;
 let claudeWatcher: ClaudeWatcher;
 let enabled = true;
@@ -21,19 +23,22 @@ function getFileEstimate(): number {
   return estimateTokensFromText(editor.document.getText());
 }
 
-function refreshFileBar(): void {
+function refreshUi(): void {
+  const snap = budgetAlerts.check();
+  statusBar?.updateBudget(snap);
   statusBar?.refresh();
+  dashboard?.push();
 }
 
 export function activate(context: vscode.ExtensionContext): void {
   const config = () => vscode.workspace.getConfiguration('tokguess');
 
   store = new UsageStore(context);
+  budgetAlerts = new ContextBudgetAlerts();
   copilotWatcher = new CopilotWatcher(config().get('sources.copilot.path'));
   claudeWatcher = new ClaudeWatcher(config().get('sources.claude.path'));
 
   statusBar = new StatusBarController(store);
-  statusBar.bindFileEstimate(getFileEstimate);
   dashboard = new DashboardProvider(
     context.extensionUri,
     store,
@@ -47,8 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     store.add(event);
-    refreshFileBar();
-    dashboard.push();
+    refreshUi();
   };
 
   if (config().get('sources.copilot.enabled', true)) {
@@ -64,36 +68,44 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(DashboardProvider.viewType, dashboard),
     vscode.commands.registerCommand('tokguess.openPanel', () => dashboard.openPanel()),
+    vscode.commands.registerCommand('tokguess.checkBudget', () => budgetAlerts.showCheck()),
     vscode.commands.registerCommand('tokguess.rescan', async () => {
       await store.rescan();
       copilotWatcher.rescan();
       claudeWatcher.rescan();
-      dashboard.push();
+      refreshUi();
       void vscode.window.showInformationMessage('TokGuess: logs rescanned');
     }),
     vscode.commands.registerCommand('tokguess.countCurrentFile', () => {
-      const n = getFileEstimate();
-      void vscode.window.showInformationMessage(`🤖 ~${n} tokens (file estimate)`);
+      void budgetAlerts.showCheck();
     }),
     vscode.commands.registerCommand('tokguess.showStats', () => dashboard.openPanel()),
     vscode.commands.registerCommand('tokguess.toggle', () => {
       enabled = !enabled;
+      budgetAlerts.setEnabled(enabled);
       statusBar.setEnabled(enabled);
       void vscode.window.showInformationMessage(`TokGuess ${enabled ? 'enabled' : 'disabled'}`);
     }),
-    vscode.window.onDidChangeActiveTextEditor(() => refreshFileBar()),
-    vscode.workspace.onDidChangeTextDocument(() => refreshFileBar()),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('tokguess.budget')) {
+        refreshUi();
+      }
+    }),
+    vscode.window.onDidChangeActiveTextEditor(() => refreshUi()),
+    vscode.window.onDidChangeTextEditorSelection(() => refreshUi()),
+    vscode.workspace.onDidChangeTextDocument(() => refreshUi()),
+    budgetAlerts,
     copilotWatcher,
     claudeWatcher,
     statusBar
   );
 
-  refreshFileBar();
-  dashboard.push();
+  refreshUi();
 }
 
 export function deactivate(): void {
   copilotWatcher?.dispose();
   claudeWatcher?.dispose();
+  budgetAlerts?.dispose();
   statusBar?.dispose();
 }

@@ -1,21 +1,29 @@
 import * as vscode from 'vscode';
+import { ContextBudgetSnapshot, getContextBudgetSnapshot } from './contextBudget';
 import { formatCost, formatTokens } from './pricing';
 import { UsageStore } from './storage/usageStore';
 
 export class StatusBarController implements vscode.Disposable {
-  private item: vscode.StatusBarItem;
+  private usageItem: vscode.StatusBarItem;
+  private budgetItem: vscode.StatusBarItem;
   private enabled = true;
-  private getFileEstimate: () => number = () => 0;
+  private budgetSnap: ContextBudgetSnapshot = getContextBudgetSnapshot();
 
   constructor(private readonly store: UsageStore) {
-    this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
-    this.item.command = 'tokguess.openPanel';
-    this.item.show();
+    this.usageItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
+    this.usageItem.command = 'tokguess.openPanel';
+
+    this.budgetItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    this.budgetItem.command = 'tokguess.checkBudget';
+
+    this.usageItem.show();
+    this.budgetItem.show();
     store.onChange(() => this.refresh());
   }
 
-  bindFileEstimate(fn: () => number): void {
-    this.getFileEstimate = fn;
+  updateBudget(snap: ContextBudgetSnapshot): void {
+    this.budgetSnap = snap;
+    this.renderBudget();
   }
 
   setEnabled(on: boolean): void {
@@ -25,12 +33,15 @@ export class StatusBarController implements vscode.Disposable {
 
   refresh(): void {
     if (!this.enabled) {
-      this.item.text = '🤖 TokGuess: off';
+      this.usageItem.text = '🤖 TokGuess: off';
+      this.budgetItem.hide();
       return;
     }
 
-    const fileEstimate = this.getFileEstimate();
-    const dash = this.store.buildDashboard('today', fileEstimate, {
+    this.budgetItem.show();
+    this.renderBudget();
+
+    const dash = this.store.buildDashboard('today', this.budgetSnap.fileTokens, {
       copilot: { enabled: true, path: '', active: false },
       claude: { enabled: true, path: '', active: false }
     });
@@ -39,19 +50,44 @@ export class StatusBarController implements vscode.Disposable {
     const cost = dash.today.cost;
 
     if (total > 0) {
-      const live = dash.liveCopilotOutput > 0 ? ` (+${formatTokens(dash.liveCopilotOutput)} live)` : '';
-      this.item.text = `🤖 ${formatTokens(total)} · ${formatCost(cost)}`;
-      this.item.tooltip = `TokGuess today\n${total.toLocaleString()} tokens · ${formatCost(cost)}${live}\nClick for dashboard`;
-    } else if (fileEstimate > 0) {
-      this.item.text = `🤖 ~${formatTokens(fileEstimate)} file`;
-      this.item.tooltip = 'TokGuess — file estimate only\nNo session logs yet · Click for dashboard';
+      this.usageItem.text = `🤖 ${formatTokens(total)} · ${formatCost(cost)}`;
+      this.usageItem.tooltip = `TokGuess today\n${total.toLocaleString()} tokens · ${formatCost(cost)}\nClick for dashboard`;
     } else {
-      this.item.text = '🤖 TokGuess';
-      this.item.tooltip = 'TokGuess — open dashboard';
+      this.usageItem.text = '🤖 TokGuess';
+      this.usageItem.tooltip = 'TokGuess — session usage today\nClick for dashboard';
     }
   }
 
+  private renderBudget(): void {
+    const s = this.budgetSnap;
+    if (!s.enabled || s.level === 'idle') {
+      this.budgetItem.hide();
+      return;
+    }
+
+    this.budgetItem.show();
+    const icon = s.level === 'over' ? '🔴' : s.level === 'warn' ? '🟡' : '📋';
+    this.budgetItem.text = `${icon} ~${formatTokens(s.contextTokens)}/${formatTokens(s.threshold)}`;
+    this.budgetItem.backgroundColor =
+      s.level === 'over'
+        ? new vscode.ThemeColor('statusBarItem.errorBackground')
+        : s.level === 'warn'
+          ? new vscode.ThemeColor('statusBarItem.warningBackground')
+          : undefined;
+
+    const selLine = s.hasSelection
+      ? `Selection: ~${s.selectionTokens.toLocaleString()} tok\nFile: ~${s.fileTokens.toLocaleString()} tok`
+      : `File: ~${s.fileTokens.toLocaleString()} tok (no selection)`;
+
+    this.budgetItem.tooltip =
+      `Context Budget — ${s.fileName}\n` +
+      `Send estimate: ~${s.contextTokens.toLocaleString()} / ${s.threshold.toLocaleString()} tok (${s.percent}%)\n` +
+      `${selLine}\n` +
+      `Click for details`;
+  }
+
   dispose(): void {
-    this.item.dispose();
+    this.usageItem.dispose();
+    this.budgetItem.dispose();
   }
 }

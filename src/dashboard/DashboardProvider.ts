@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { getContextBudgetSnapshot } from '../contextBudget';
 import { UsageStore } from '../storage/usageStore';
 import { CopilotWatcher } from '../watchers/copilotWatcher';
 import { ClaudeWatcher } from '../watchers/claudeWatcher';
@@ -59,7 +60,8 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
       return;
     }
     const config = vscode.workspace.getConfiguration('tokguess');
-    const payload = this.store.buildDashboard(this.period, this.getFileEstimate(), {
+    const budget = getContextBudgetSnapshot();
+    const payload = this.store.buildDashboard(this.period, budget.fileTokens, {
       copilot: {
         enabled: config.get<boolean>('sources.copilot.enabled', true),
         path: this.copilot.path,
@@ -71,6 +73,16 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         active: this.claude.isActive()
       }
     });
+    payload.contextBudget = {
+      fileTokens: budget.fileTokens,
+      selectionTokens: budget.selectionTokens,
+      contextTokens: budget.contextTokens,
+      threshold: budget.threshold,
+      percent: budget.percent,
+      level: budget.level,
+      hasSelection: budget.hasSelection,
+      fileName: budget.fileName
+    };
     this.view.webview.postMessage({ type: 'dashboard', payload });
   }
 }
