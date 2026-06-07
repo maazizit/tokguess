@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <title>TokGuess Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: rgba(30, 30, 46, 0.72);
+      --border: rgba(137, 180, 250, 0.18);
+      --text: #e6e9ef;
+      --muted: #8b93a7;
+      --accent: #89b4fa;
+      --accent2: #cba6f7;
+      --copilot: #3dd68c;
+      --claude: #f5a97f;
+      --estimate: #8aadf4;
+      --glow: 0 0 40px rgba(137, 180, 250, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a1f35, var(--bg));
+      color: var(--text);
+      padding: 16px;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center; font-weight: 800; color: #0f1117;
+      box-shadow: var(--glow);
+    }
+    h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+    .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .filters { display: flex; gap: 6px; }
+    .chip {
+      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      padding: 6px 12px; border-radius: 999px; font-size: 11px; cursor: pointer;
+    }
+    .chip.active {
+      background: linear-gradient(135deg, rgba(137,180,250,.25), rgba(203,166,247,.2));
+      color: var(--text); border-color: var(--accent);
+    }
+    .grid { display: grid; gap: 12px; }
+    .hero {
+      display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;
+    }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 16px; backdrop-filter: blur(12px);
+      box-shadow: var(--glow);
+    }
+    .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .value { font-size: 28px; font-weight: 800; margin-top: 6px; letter-spacing: -0.03em; }
+    .value.sm { font-size: 20px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .pill {
+      font-size: 10px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border);
+    }
+    .pill.ok { color: var(--copilot); border-color: rgba(61,214,140,.35); }
+    .pill.warn { color: #f9e2af; border-color: rgba(249,226,175,.35); }
+    .pill.off { color: var(--muted); }
+    .stats4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .mini .value { font-size: 18px; }
+    canvas { width: 100%; height: 120px; margin-top: 10px; }
+    .models { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+    .model-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .bar-bg { height: 6px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; grid-column: 1 / -1; }
+    .bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .sessions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .session {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.04); font-size: 12px;
+    }
+    .source-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .dot-copilot { background: var(--copilot); }
+    .dot-claude { background: var(--claude); }
+    .footer { margin-top: 14px; font-size: 10px; color: var(--muted); text-align: center; }
+    @media (max-width: 700px) { .hero { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <div class="logo">TG</div>
+      <div>
+        <h1>TokGuess</h1>
+        <div class="sub">Token intelligence · local only</div>
+      </div>
+    </div>
+    <div class="filters">
+      <button class="chip active" data-period="today">Today</button>
+      <button class="chip" data-period="week">7 days</button>
+      <button class="chip" data-period="month">30 days</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="hero">
+      <div class="card">
+        <div class="label">Period cost (est.)</div>
+        <div class="value" id="cost">$0.00</div>
+        <div class="row" id="sources"></div>
+      </div>
+      <div class="card stats4">
+        <div class="mini"><div class="label">Total tokens</div><div class="value sm" id="total">0</div></div>
+        <div class="mini"><div class="label">Input</div><div class="value sm" id="input">0</div></div>
+        <div class="mini"><div class="label">Output</div><div class="value sm" id="output">0</div></div>
+        <div class="mini"><div class="label">Cache read</div><div class="value sm" id="cache">0</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">Usage trend</div>
+      <canvas id="chart" height="120"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="label">Top models</div>
+      <div class="models" id="models"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Recent sessions</div>
+      <div class="sessions" id="sessions"></div>
+    </div>
+
+    <div class="card">
+      <div class="label">Open file estimate</div>
+      <div class="value sm" id="fileEst">~0 tok</div>
+      <div class="sub" style="margin-top:6px">Pre-send estimate for active editor (chars ÷ 4.2)</div>
+    </div>
+  </div>
+
+  <div class="footer" id="footer">Waiting for data…</div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+    let period = 'today';
+
+    document.querySelectorAll('.chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.chip').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        period = btn.dataset.period;
+        vscode.postMessage({ type: 'setPeriod', period });
+      });
+    });
+
+    window.addEventListener('message', (e) => {
+      if (e.data?.type === 'dashboard') render(e.data.payload);
+    });
+
+    function fmtTok(n) {
+      if (n >= 1e6) return (n/1e6).toFixed(1)+'M';
+      if (n >= 1e3) return (n/1e3).toFixed(1)+'k';
+      return String(n|0);
+    }
+    function fmtCost(n) {
+      if (n < 0.01) return '$'+n.toFixed(4);
+      if (n < 1) return '$'+n.toFixed(3);
+      return '$'+n.toFixed(2);
+    }
+
+    function render(d) {
+      const p = d.period;
+      document.getElementById('cost').textContent = fmtCost(p.cost);
+      document.getElementById('total').textContent = fmtTok(p.totalTokens);
+      document.getElementById('input').textContent = fmtTok(p.inputTokens);
+      document.getElementById('output').textContent = fmtTok(p.outputTokens);
+      document.getElementById('cache').textContent = fmtTok(p.cacheReadTokens);
+      document.getElementById('fileEst').textContent = '~'+fmtTok(d.fileEstimate)+' tok';
+
+      const src = document.getElementById('sources');
+      src.innerHTML = '';
+      const add = (label, on, path) => {
+        const el = document.createElement('span');
+        el.className = 'pill ' + (on ? 'ok' : 'off');
+        el.textContent = label + (on ? ' · live' : ' · offline');
+        el.title = path;
+        src.appendChild(el);
+      };
+      add('Copilot', d.sources.copilot.active, d.sources.copilot.path);
+      add('Claude', d.sources.claude.active, d.sources.claude.path);
+
+      const models = document.getElementById('models');
+      models.innerHTML = '';
+      (d.topModels || []).forEach((m) => {
+        const row = document.createElement('div');
+        row.innerHTML = `<div class="model-row"><span>${m.model}</span><span>${fmtTok(m.tokens)} · ${fmtCost(m.cost)}</span><div class="bar-bg"><div class="bar-fill" style="width:${m.pct}%"></div></div></div>`;
+        models.appendChild(row);
+      });
+      if (!d.topModels?.length) models.innerHTML = '<div class="sub">No model data yet — use Copilot or Claude Code</div>';
+
+      const sessions = document.getElementById('sessions');
+      sessions.innerHTML = '';
+      (d.recentSessions || []).forEach((s) => {
+        const el = document.createElement('div');
+        el.className = 'session';
+        const dot = s.source === 'claude' ? 'dot-claude' : 'dot-copilot';
+        el.innerHTML = `<span><span class="source-dot ${dot}"></span>${s.sessionId}</span><span>${fmtTok(s.tokens)} · ${fmtCost(s.cost)}</span>`;
+        sessions.appendChild(el);
+      });
+      if (!d.recentSessions?.length) sessions.innerHTML = '<div class="sub">No sessions ingested yet</div>';
+
+      const hourly = d.periodLabel === 'today' ? (d.today.hourly || []) : bucketHourly(d.period);
+      drawChart(hourly);
+      const when = d.lastIngest ? new Date(d.lastIngest).toLocaleString() : 'never';
+      document.getElementById('footer').textContent = `Last ingest: ${when} · ${p.events} events · pricing = public API rates (approx.)`;
+    }
+
+    function bucketHourly(period) {
+      // Week/month: show relative day buckets in 24 slots
+      const buckets = Array(24).fill(0);
+      const span = period.events || 0;
+      if (!span) return buckets;
+      buckets[23] = period.totalTokens;
+      return buckets;
+    }
+
+    function drawChart(hourly) {
+      const c = document.getElementById('chart');
+      const ctx = c.getContext('2d');
+      const w = c.clientWidth, h = c.height;
+      c.width = w * devicePixelRatio;
+      c.height = h * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+      ctx.clearRect(0,0,w,h);
+      const max = Math.max(...hourly, 1);
+      const bw = w / 24 - 2;
+      hourly.forEach((v, i) => {
+        const bh = (v / max) * (h - 20);
+        const x = i * (bw + 2) + 1;
+        const grad = ctx.createLinearGradient(0, h-bh, 0, h);
+        grad.addColorStop(0, '#89b4fa');
+        grad.addColorStop(1, '#cba6f7');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, h - bh - 8, bw, bh);
+      });
+    }
+
+    vscode.postMessage({ type: 'ready' });
+  </script>
+</body>
+</html>

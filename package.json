@@ -1,29 +1,65 @@
 {
   "name": "tokguess-copilot",
-  "displayName": "TokGuess for Copilot",
-  "description": "Local token estimates for GitHub Copilot Chat — zero deps, zero tracking, 100% offline",
-  "version": "0.1.0",
+  "displayName": "TokGuess",
+  "description": "Track Copilot & Claude token usage from local session logs + file estimates. Beautiful dashboard, zero cloud.",
+  "version": "0.2.1",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Machine Learning"
   ],
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "icon": "media/icon.png",
   "keywords": [
     "copilot",
-    "github copilot",
+    "claude",
     "tokens",
     "estimate",
     "tokguess",
-    "gpt-4"
+    "dashboard",
+    "cost"
   ],
   "activationEvents": [
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tokguess",
+          "title": "TokGuess",
+          "icon": "media/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "tokguess": [
+        {
+          "type": "webview",
+          "id": "tokguess.dashboard",
+          "name": "Dashboard"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "tokguess.openPanel",
+        "title": "Open Dashboard",
+        "category": "TokGuess",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "tokguess.rescan",
+        "title": "Rescan Logs",
+        "category": "TokGuess"
+      },
       {
         "command": "tokguess.toggle",
         "title": "Toggle TokGuess",
@@ -31,23 +67,47 @@
       },
       {
         "command": "tokguess.countCurrentFile",
-        "title": "Count Tokens (Copilot estimate)",
+        "title": "Count File Tokens (estimate)",
         "category": "TokGuess"
       },
       {
         "command": "tokguess.showStats",
-        "title": "Show Token Stats",
+        "title": "Show Dashboard",
         "category": "TokGuess"
       }
     ],
     "keybindings": [
       {
-        "command": "tokguess.countCurrentFile",
+        "command": "tokguess.openPanel",
         "key": "ctrl+shift+t",
-        "mac": "ctrl+shift+t",
-        "when": "editorFocus"
+        "mac": "ctrl+shift+t"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "TokGuess",
+      "properties": {
+        "tokguess.sources.copilot.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Watch Copilot session logs (~/.copilot/session-state)"
+        },
+        "tokguess.sources.copilot.path": {
+          "type": "string",
+          "default": "",
+          "description": "Custom Copilot session-state path (empty = default)"
+        },
+        "tokguess.sources.claude.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Watch Claude Code JSONL logs (~/.claude/projects)"
+        },
+        "tokguess.sources.claude.path": {
+          "type": "string",
+          "default": "",
+          "description": "Custom Claude logs root path (empty = default)"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

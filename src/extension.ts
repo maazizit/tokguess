@@ -1,170 +1,99 @@
 import * as vscode from 'vscode';
+import { DashboardProvider } from './dashboard/DashboardProvider';
+import { estimateTokensFromText } from './estimator';
+import { StatusBarController } from './statusBar';
+import { UsageStore } from './storage/usageStore';
+import { ClaudeWatcher } from './watchers/claudeWatcher';
+import { CopilotWatcher } from './watchers/copilotWatcher';
 
-const CHARS_PER_TOKEN = 4.2;
-const CODE_BOOST = 1.08;
+let store: UsageStore;
+let statusBar: StatusBarController;
+let dashboard: DashboardProvider;
+let copilotWatcher: CopilotWatcher;
+let claudeWatcher: ClaudeWatcher;
+let enabled = true;
 
-class CopilotTokenEstimator {
-  private statusBar: vscode.StatusBarItem;
-  private enabled = true;
-
-  constructor() {
-    this.statusBar = vscode.window.createStatusBarItem(
-      vscode.StatusBarAlignment.Right,
-      100
-    );
-    this.statusBar.command = 'tokguess.showStats';
-    this.statusBar.show();
+function getFileEstimate(): number {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return 0;
   }
-
-  estimateTokens(text: string): number {
-    if (!text?.trim()) {
-      return 0;
-    }
-
-    const cleaned = text.trim();
-    let estimate = Math.ceil(cleaned.length / CHARS_PER_TOKEN);
-
-    const punctuation = (cleaned.match(/[.,!?;:\-()[\]{}]/g) || []).length;
-    estimate += Math.ceil(punctuation * 0.4);
-
-    if (this.isCodeLike(cleaned)) {
-      estimate = Math.ceil(estimate * CODE_BOOST);
-    }
-
-    return Math.max(estimate, 1);
-  }
-
-  private isCodeLike(text: string): boolean {
-    const codeIndicators = [
-      /\{[\s\S]*\}/,
-      /\[[\s\S]*\]/,
-      /function|const|let|var|import|export|class|def |async /,
-      /=>|::|\/\//,
-      /\.[\w]+\(/
-    ];
-
-    return codeIndicators.some((regex) => regex.test(text));
-  }
-
-  countSelection(editor: vscode.TextEditor): number {
-    return this.estimateTokens(editor.document.getText(editor.selection));
-  }
-
-  countFile(editor: vscode.TextEditor): number {
-    return this.estimateTokens(editor.document.getText());
-  }
-
-  updateStatusBar(editor: vscode.TextEditor | undefined): void {
-    if (!editor || !this.enabled) {
-      this.statusBar.text = '🤖 TokGuess: off';
-      this.statusBar.tooltip = 'TokGuess for Copilot — click to enable';
-      return;
-    }
-
-    const tokens = this.countFile(editor);
-    const chars = editor.document.getText().length;
-
-    this.statusBar.text = `🤖 ~${tokens} tok`;
-    this.statusBar.tooltip =
-      `TokGuess (Copilot estimate)\n` +
-      `~${tokens} tokens · ${chars} chars\n` +
-      `Ctrl+Shift+T — detailed stats`;
-  }
-
-  async showStats(editor: vscode.TextEditor | undefined): Promise<void> {
-    if (!editor) {
-      vscode.window.showWarningMessage('No active editor');
-      return;
-    }
-
-    const fileTokens = this.countFile(editor);
-    const selectionTokens = this.countSelection(editor);
-    const fileChars = editor.document.getText().length;
-    const selectionChars = editor.document.getText(editor.selection).length;
-    const fileName = editor.document.fileName.split('/').pop() ?? 'untitled';
-
-    const message = [
-      `📊 TokGuess — ${fileName}`,
-      '',
-      'File:',
-      `  • ~${fileTokens} tokens (estimated)`,
-      `  • ${fileChars} characters`,
-      `  • ${editor.document.lineCount} lines`,
-      '',
-      'Selection:',
-      `  • ~${selectionTokens} tokens (estimated)`,
-      `  • ${selectionChars} characters`,
-      '',
-      '⚠️ Local estimate for Copilot Chat (GPT-4 tokenizer approx.)',
-      '   Not official Microsoft billing. Typical accuracy: ~90–95%.'
-    ].join('\n');
-
-    await vscode.window.showInformationMessage(message);
-  }
-
-  toggle(): void {
-    this.enabled = !this.enabled;
-    this.updateStatusBar(vscode.window.activeTextEditor);
-    vscode.window.showInformationMessage(
-      `TokGuess ${this.enabled ? 'enabled' : 'disabled'}`
-    );
-  }
-
-  dispose(): void {
-    this.statusBar.dispose();
-  }
+  return estimateTokensFromText(editor.document.getText());
 }
 
-let estimator: CopilotTokenEstimator;
+function refreshFileBar(): void {
+  statusBar?.refresh();
+}
 
 export function activate(context: vscode.ExtensionContext): void {
-  estimator = new CopilotTokenEstimator();
+  const config = () => vscode.workspace.getConfiguration('tokguess');
 
-  const countCurrentFile = vscode.commands.registerCommand(
-    'tokguess.countCurrentFile',
-    () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        return;
-      }
+  store = new UsageStore(context);
+  copilotWatcher = new CopilotWatcher(config().get('sources.copilot.path'));
+  claudeWatcher = new ClaudeWatcher(config().get('sources.claude.path'));
 
-      const tokens = estimator.countFile(editor);
-      void vscode.window.showInformationMessage(
-        `🤖 ~${tokens} tokens (Copilot estimate)`
-      );
+  statusBar = new StatusBarController(store);
+  statusBar.bindFileEstimate(getFileEstimate);
+  dashboard = new DashboardProvider(
+    context.extensionUri,
+    store,
+    copilotWatcher,
+    claudeWatcher,
+    getFileEstimate
+  );
+
+  const ingest = (event: Parameters<UsageStore['add']>[0]) => {
+    if (!enabled) {
+      return;
     }
-  );
+    store.add(event);
+    refreshFileBar();
+    dashboard.push();
+  };
 
-  const showStats = vscode.commands.registerCommand(
-    'tokguess.showStats',
-    () => estimator.showStats(vscode.window.activeTextEditor)
-  );
+  if (config().get('sources.copilot.enabled', true)) {
+    copilotWatcher.onEvent(ingest);
+    copilotWatcher.activate(context);
+  }
 
-  const toggleCounter = vscode.commands.registerCommand(
-    'tokguess.toggle',
-    () => estimator.toggle()
-  );
-
-  const onActiveEditor = vscode.window.onDidChangeActiveTextEditor((editor) => {
-    estimator.updateStatusBar(editor);
-  });
-
-  const onTextChange = vscode.workspace.onDidChangeTextDocument(() => {
-    estimator.updateStatusBar(vscode.window.activeTextEditor);
-  });
-
-  estimator.updateStatusBar(vscode.window.activeTextEditor);
+  if (config().get('sources.claude.enabled', true)) {
+    claudeWatcher.onEvent(ingest);
+    claudeWatcher.activate(context);
+  }
 
   context.subscriptions.push(
-    countCurrentFile,
-    showStats,
-    toggleCounter,
-    onActiveEditor,
-    onTextChange,
-    { dispose: () => estimator.dispose() }
+    vscode.window.registerWebviewViewProvider(DashboardProvider.viewType, dashboard),
+    vscode.commands.registerCommand('tokguess.openPanel', () => dashboard.openPanel()),
+    vscode.commands.registerCommand('tokguess.rescan', async () => {
+      await store.rescan();
+      copilotWatcher.rescan();
+      claudeWatcher.rescan();
+      dashboard.push();
+      void vscode.window.showInformationMessage('TokGuess: logs rescanned');
+    }),
+    vscode.commands.registerCommand('tokguess.countCurrentFile', () => {
+      const n = getFileEstimate();
+      void vscode.window.showInformationMessage(`🤖 ~${n} tokens (file estimate)`);
+    }),
+    vscode.commands.registerCommand('tokguess.showStats', () => dashboard.openPanel()),
+    vscode.commands.registerCommand('tokguess.toggle', () => {
+      enabled = !enabled;
+      statusBar.setEnabled(enabled);
+      void vscode.window.showInformationMessage(`TokGuess ${enabled ? 'enabled' : 'disabled'}`);
+    }),
+    vscode.window.onDidChangeActiveTextEditor(() => refreshFileBar()),
+    vscode.workspace.onDidChangeTextDocument(() => refreshFileBar()),
+    copilotWatcher,
+    claudeWatcher,
+    statusBar
   );
+
+  refreshFileBar();
+  dashboard.push();
 }
 
 export function deactivate(): void {
-  estimator?.dispose();
+  copilotWatcher?.dispose();
+  claudeWatcher?.dispose();
+  statusBar?.dispose();
 }
