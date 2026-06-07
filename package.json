@@ -2,7 +2,7 @@
   "name": "tokguess-copilot",
   "displayName": "TokGuess",
   "description": "Track Copilot & Claude tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"
@@ -112,6 +112,11 @@
           "type": "string",
           "default": "",
           "description": "Custom VS Code logs path (empty = ~/Library/Application Support/Code/logs)"
+        },
+        "tokguess.sources.copilot.logTodayOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ingest only today's Copilot Chat.log lines (recommended after Rescan)"
         },
         "tokguess.sources.claude.enabled": {
           "type": "boolean",

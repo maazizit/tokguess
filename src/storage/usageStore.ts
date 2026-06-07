@@ -1,6 +1,14 @@
 import * as vscode from 'vscode';
 import { estimateCost } from '../pricing';
-import { DashboardPayload, DayStats, TokenEvent, TokenSource } from '../types';
+import {
+  DashboardPayload,
+  DataQuality,
+  DayStats,
+  PeriodCompare,
+  SessionRow,
+  TokenEvent,
+  TokenSource
+} from '../types';
 
 const STORAGE_KEY = 'tokguess.events';
 const MAX_EVENTS = 8000;
@@ -81,43 +89,43 @@ export class UsageStore {
       modelTotals.set(e.model ?? 'unknown', cur);
     }
 
+    const modelEstimated = new Map<string, boolean>();
+    for (const e of inPeriod) {
+      const m = e.model ?? 'unknown';
+      if (e.estimated) {
+        modelEstimated.set(m, true);
+      }
+    }
+
     const grand = [...modelTotals.values()].reduce((s, m) => s + m.tokens, 0) || 1;
     const topModels = [...modelTotals.entries()]
       .map(([model, v]) => ({
         model,
         tokens: v.tokens,
         cost: v.cost,
-        pct: Math.round((v.tokens / grand) * 100)
+        pct: Math.round((v.tokens / grand) * 100),
+        estimated: modelEstimated.get(model) ?? false
       }))
       .sort((a, b) => b.tokens - a.tokens)
       .slice(0, 6);
 
-    const sessionMap = new Map<
-      string,
-      { source: TokenSource; tokens: number; cost: number; lastSeen: number }
-    >();
-    for (const e of inPeriod) {
-      if (!e.sessionId) {
-        continue;
-      }
-      const total = e.inputTokens + e.outputTokens;
-      const cost = estimateCost(e.model, e.inputTokens, e.outputTokens, e.cacheReadTokens);
-      const cur = sessionMap.get(e.sessionId) ?? {
-        source: e.source,
-        tokens: 0,
-        cost: 0,
-        lastSeen: 0
-      };
-      cur.tokens += total;
-      cur.cost += cost;
-      cur.lastSeen = Math.max(cur.lastSeen, e.timestamp);
-      sessionMap.set(e.sessionId, cur);
-    }
+    const sessionTable = buildSessionTable(inPeriod);
+    const recentSessions = sessionTable.slice(0, 8).map((s) => ({
+      sessionId: s.id.slice(0, 12),
+      source: s.source,
+      tokens: s.totalTokens,
+      cost: s.cost,
+      lastSeen: s.lastSeen
+    }));
 
-    const recentSessions = [...sessionMap.entries()]
-      .map(([sessionId, v]) => ({ sessionId: sessionId.slice(0, 8), ...v }))
-      .sort((a, b) => b.lastSeen - a.lastSeen)
-      .slice(0, 8);
+    const estimatedRequests = inPeriod.filter((e) => e.estimated).length;
+    const realRequests = inPeriod.length - estimatedRequests;
+    const dataQuality = buildDataQuality(inPeriod, estimatedRequests, realRequests);
+
+    let periodCompare: PeriodCompare | undefined;
+    if (period === 'today') {
+      periodCompare = buildDayCompare(this.events, now);
+    }
 
     const lastIngest = this.events.length
       ? Math.max(...this.events.map((e) => e.timestamp))
@@ -127,6 +135,9 @@ export class UsageStore {
       today,
       period: periodStats,
       periodLabel: period,
+      dataQuality,
+      periodCompare,
+      sessionTable,
       topModels,
       recentSessions,
       fileEstimate,
@@ -207,6 +218,148 @@ function aggregatePeriod(events: TokenEvent[], label: 'today' | 'week' | 'month'
     addEvent(stats, e);
   }
   return stats;
+}
+
+function buildSessionTable(events: TokenEvent[]): SessionRow[] {
+  const map = new Map<
+    string,
+    {
+      label: string;
+      source: TokenSource;
+      models: Map<string, number>;
+      requests: number;
+      input: number;
+      output: number;
+      cost: number;
+      estimated: boolean;
+      startedAt: number;
+      lastSeen: number;
+    }
+  >();
+
+  for (const e of events) {
+    const key = e.sessionId ?? `req-${e.id}`;
+    const label = formatSessionLabel(key, e);
+    const cur = map.get(key) ?? {
+      label,
+      source: e.source,
+      models: new Map<string, number>(),
+      requests: 0,
+      input: 0,
+      output: 0,
+      cost: 0,
+      estimated: true,
+      startedAt: e.timestamp,
+      lastSeen: e.timestamp
+    };
+    cur.requests += 1;
+    cur.input += e.inputTokens;
+    cur.output += e.outputTokens;
+    cur.cost += estimateCost(e.model, e.inputTokens, e.outputTokens, e.cacheReadTokens);
+    if (!e.estimated) {
+      cur.estimated = false;
+    }
+    cur.startedAt = Math.min(cur.startedAt, e.timestamp);
+    cur.lastSeen = Math.max(cur.lastSeen, e.timestamp);
+    const model = e.model ?? 'unknown';
+    cur.models.set(model, (cur.models.get(model) ?? 0) + 1);
+    map.set(key, cur);
+  }
+
+  return [...map.entries()]
+    .map(([id, v]) => {
+      const topModel = [...v.models.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
+      return {
+        id,
+        label: v.label,
+        source: v.source,
+        model: topModel,
+        requests: v.requests,
+        inputTokens: v.input,
+        outputTokens: v.output,
+        totalTokens: v.input + v.output,
+        cost: v.cost,
+        estimated: v.estimated,
+        startedAt: v.startedAt,
+        lastSeen: v.lastSeen
+      };
+    })
+    .sort((a, b) => b.lastSeen - a.lastSeen);
+}
+
+function formatSessionLabel(sessionId: string, e: TokenEvent): string {
+  if (sessionId.startsWith('log-')) {
+    return sessionId.replace('log-', '').replace('panel/', 'Chat · ');
+  }
+  if (sessionId.length > 12) {
+    return sessionId.slice(0, 8) + '…';
+  }
+  return e.source === 'claude' ? 'Claude Code' : 'Copilot';
+}
+
+function buildDataQuality(
+  events: TokenEvent[],
+  estimated: number,
+  real: number
+): DataQuality {
+  const total = events.length;
+  let sourceLabel = 'Aucune source';
+  let accuracyLabel = '—';
+
+  if (real > 0 && estimated === 0) {
+    sourceLabel = 'Logs API (réels)';
+    accuracyLabel = '~95% précis';
+  } else if (estimated > 0 && real === 0) {
+    sourceLabel = 'Chat.log (estimé)';
+    accuracyLabel = '~50–70% approx.';
+  } else if (estimated > 0 && real > 0) {
+    sourceLabel = 'Mixte réel + estimé';
+    accuracyLabel = 'Variable';
+  }
+
+  return {
+    totalRequests: total,
+    estimatedRequests: estimated,
+    realRequests: real,
+    accuracyLabel,
+    sourceLabel
+  };
+}
+
+function buildDayCompare(events: TokenEvent[], now: number): PeriodCompare {
+  const todayStart = periodStart('today', now);
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+
+  const todayEv = events.filter((e) => e.timestamp >= todayStart);
+  const yesterdayEv = events.filter(
+    (e) => e.timestamp >= yesterdayStart && e.timestamp < todayStart
+  );
+
+  const sum = (ev: TokenEvent[]) => ({
+    requests: ev.length,
+    tokens: ev.reduce((s, e) => s + e.inputTokens + e.outputTokens + e.cacheReadTokens, 0),
+    cost: ev.reduce(
+      (s, e) => s + estimateCost(e.model, e.inputTokens, e.outputTokens, e.cacheReadTokens),
+      0
+    )
+  });
+
+  const cur = sum(todayEv);
+  const prev = sum(yesterdayEv);
+  const delta =
+    prev.tokens > 0 ? Math.round(((cur.tokens - prev.tokens) / prev.tokens) * 100) : cur.tokens > 0 ? 100 : 0;
+
+  return {
+    currentLabel: "Aujourd'hui",
+    previousLabel: 'Hier',
+    currentRequests: cur.requests,
+    previousRequests: prev.requests,
+    currentTokens: cur.tokens,
+    previousTokens: prev.tokens,
+    currentCost: cur.cost,
+    previousCost: prev.cost,
+    tokenDeltaPct: delta
+  };
 }
 
 function addEvent(stats: DayStats, e: TokenEvent): void {

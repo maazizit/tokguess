@@ -40,11 +40,49 @@ export interface DayStats {
   hourly: number[];
 }
 
+export interface SessionRow {
+  id: string;
+  label: string;
+  source: TokenSource;
+  model: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cost: number;
+  estimated: boolean;
+  startedAt: number;
+  lastSeen: number;
+}
+
+export interface PeriodCompare {
+  currentLabel: string;
+  previousLabel: string;
+  currentRequests: number;
+  previousRequests: number;
+  currentTokens: number;
+  previousTokens: number;
+  currentCost: number;
+  previousCost: number;
+  tokenDeltaPct: number;
+}
+
+export interface DataQuality {
+  totalRequests: number;
+  estimatedRequests: number;
+  realRequests: number;
+  accuracyLabel: string;
+  sourceLabel: string;
+}
+
 export interface DashboardPayload {
   today: DayStats;
   period: DayStats;
   periodLabel: 'today' | 'week' | 'month';
-  topModels: Array<{ model: string; tokens: number; cost: number; pct: number }>;
+  dataQuality: DataQuality;
+  periodCompare?: PeriodCompare;
+  sessionTable: SessionRow[];
+  topModels: Array<{ model: string; tokens: number; cost: number; pct: number; estimated: boolean }>;
   recentSessions: Array<{
     sessionId: string;
     source: TokenSource;

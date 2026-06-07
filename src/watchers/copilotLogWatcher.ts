@@ -36,7 +36,10 @@ export function parseCcreqLine(line: string): CopilotLogEntry | null {
   const [, requestId, status, modelStr, durationStr, context] = match;
   const model = modelStr.includes('->') ? modelStr.split('->')[0].trim() : modelStr.trim();
   const timestampMatch = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})/);
-  const timestamp = timestampMatch ? new Date(timestampMatch[1]).getTime() : Date.now();
+  if (!timestampMatch) {
+    return null;
+  }
+  const timestamp = new Date(timestampMatch[1]).getTime();
 
   return {
     timestamp,
@@ -59,7 +62,7 @@ function estimateFromDuration(model: string, durationMs: number): { input: numbe
   }
   const effective = Math.max(durationMs - 200, 100);
   const output = Math.ceil(((effective * 0.6) / 1000) * rate);
-  return { input: output * 10, output };
+  return { input: Math.ceil(output * 5), output };
 }
 
 export class CopilotLogWatcher implements vscode.Disposable {
@@ -238,6 +241,10 @@ export class CopilotLogWatcher implements vscode.Disposable {
         }
         this.processedIds.add(entry.requestId);
 
+        if (this.isTodayOnly() && !this.isToday(entry.timestamp)) {
+          continue;
+        }
+
         const est = estimateFromDuration(entry.model, entry.durationMs);
         this.emit({
           id: `copilot-log:${entry.requestId}`,
@@ -258,6 +265,18 @@ export class CopilotLogWatcher implements vscode.Disposable {
     } catch {
       /* ignore */
     }
+  }
+
+  private isTodayOnly(): boolean {
+    return vscode.workspace
+      .getConfiguration('tokguess')
+      .get<boolean>('sources.copilot.logTodayOnly', true);
+  }
+
+  private isToday(ts: number): boolean {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return ts >= start;
   }
 
   private emit(event: TokenEvent): void {
