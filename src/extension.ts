@@ -74,8 +74,12 @@ export function activate(context: vscode.ExtensionContext): void {
   dashboard = new EnhancedDashboardProvider(
     context.extensionUri,
     store,
-    analyticsEngine,
-    budgetManager
+    budgetManager,
+    getFileEstimate,
+    copilotWatcher,
+    copilotLogWatcher,
+    claudeWatcher,
+    antigravityWatcher
   );
 
   const ingest = (event: Parameters<UsageStore['add']>[0]) => {
