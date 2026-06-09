@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { getContextBudgetSnapshot } from '../contextBudget';
 import { BudgetManager } from '../budget/budgetManager';
 import { ReportExporter } from '../export/reportExporter';
+import { PrecisionModeController } from '../precision/precisionMode';
 import { UsageStore } from '../storage/usageStore';
 import { TokenEvent } from '../types';
 import { AntigravityWatcher } from '../watchers/antigravityWatcher';
@@ -26,7 +27,8 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
     private readonly copilotLog: CopilotLogWatcher,
     private readonly claude: ClaudeWatcher,
     private readonly antigravity: AntigravityWatcher,
-    private readonly reportExporter: ReportExporter
+    private readonly reportExporter: ReportExporter,
+    private readonly precision: PrecisionModeController
   ) {
     store.onChange(() => void this.refresh());
   }
@@ -63,6 +65,12 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
           this._isDarkMode = !this._isDarkMode;
           webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
           await this.refresh();
+          break;
+        case 'enablePrecision':
+          await vscode.commands.executeCommand('tokguess.enablePrecision');
+          break;
+        case 'disablePrecision':
+          await vscode.commands.executeCommand('tokguess.disablePrecision');
           break;
       }
     });
@@ -108,8 +116,18 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
       fileName: budget.fileName
     };
 
+    const precision = this.precision.getState();
+    if (precision.status === 'otel') {
+      dashboard.dataQuality.sourceLabel = 'OTel local · tokens réels Copilot';
+      dashboard.dataQuality.accuracyLabel = 'réel (Copilot)';
+    } else if (precision.status === 'fallback') {
+      dashboard.dataQuality.sourceLabel = 'Fallback Chat.log · OTel indisponible';
+      dashboard.dataQuality.accuracyLabel = '~75–85% approx.';
+    }
+
     const budgetStatus = await this.budgetManager.checkMonthlyCost(dashboard.period.cost);
     const chart = buildChartSeries(this.store.getEvents(), this._period);
+    const copilotEnabled = config.get<boolean>('sources.copilot.enabled', true);
 
     this._view.webview.postMessage({
       type: 'updateData',
@@ -117,7 +135,9 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
         dashboard,
         budgetStatus,
         period: this._period,
-        chart
+        chart,
+        precision,
+        copilotEnabled
       }
     });
   }
@@ -162,6 +182,7 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
     }
     button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
     button.primary:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
     .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .banner {
       padding: 8px 12px; border-radius: 8px; background: var(--card);
@@ -201,6 +222,7 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
       <button class="chip${this._period === 'month' ? ' active' : ''}" data-period="month">30 jours</button>
       <button onclick="toggleTheme()">${this._isDarkMode ? '☀️ Light' : '🌙 Dark'}</button>
       <button onclick="exportReport()" title="Exporter CSV / JSON / Markdown">📤 Export</button>
+      <button id="precisionBtn" onclick="togglePrecision()" title="Tokens réels Copilot via OTel local">🎯 Plus précision</button>
       <button class="primary" onclick="refresh()" title="Rafraîchir">🔄</button>
     </div>
   </div>
@@ -229,6 +251,14 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
     function toggleTheme() { vscode.postMessage({ type: 'toggleTheme' }); }
     function refresh() { vscode.postMessage({ type: 'refresh' }); }
     function exportReport() { vscode.postMessage({ type: 'export' }); }
+    function togglePrecision() {
+      const btn = document.getElementById('precisionBtn');
+      if (btn?.dataset.mode === 'off') {
+        vscode.postMessage({ type: 'enablePrecision' });
+      } else {
+        vscode.postMessage({ type: 'disablePrecision' });
+      }
+    }
 
     function fmtTok(n) {
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
@@ -241,14 +271,32 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
       return '$' + n.toFixed(2);
     }
 
-    function render({ dashboard: d, budgetStatus, period, chart: chartSeries }) {
+    function render({ dashboard: d, budgetStatus, period, chart: chartSeries, precision, copilotEnabled }) {
       const p = d.period;
       const dq = d.dataQuality || {};
+      const btn = document.getElementById('precisionBtn');
+
+      if (btn) {
+        if (!copilotEnabled) {
+          btn.textContent = '🎯 Copilot requis';
+          btn.disabled = true;
+          btn.dataset.mode = 'disabled';
+        } else if (precision?.status === 'otel') {
+          btn.textContent = '↩ Mode standard';
+          btn.disabled = false;
+          btn.dataset.mode = 'on';
+        } else {
+          btn.textContent = '🎯 Plus précision';
+          btn.disabled = false;
+          btn.dataset.mode = 'off';
+        }
+      }
 
       document.getElementById('banner').innerHTML =
         '<strong>Source :</strong> ' + (dq.sourceLabel || '—') +
         ' · <strong>Précision :</strong> ' + (dq.accuracyLabel || '—') +
-        ' · <strong>Mode :</strong> ' + (document.documentElement.classList.contains('theme-dark') ? 'Dark' : 'Light');
+        ' · <strong>UI :</strong> ' + (document.documentElement.classList.contains('theme-dark') ? 'Dark' : 'Light') +
+        (precision?.collectorRunning ? ' · <strong>Collecteur :</strong> actif' : '');
 
       const periodLabel = period === 'today' ? "aujourd'hui" : period === 'week' ? '7 jours' : '30 jours';
       const compareHtml = d.periodCompare ? \`

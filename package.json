@@ -2,7 +2,7 @@
   "name": "tokguess-copilot",
   "displayName": "TokGuess",
   "description": "Track Copilot, Claude & Antigravity CLI tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"
@@ -138,6 +138,22 @@
         "title": "Copy Token Count",
         "category": "TokGuess",
         "icon": "$(copy)"
+      },
+      {
+        "command": "tokguess.enablePrecision",
+        "title": "Enable Precision Mode (Copilot OTel)",
+        "category": "TokGuess",
+        "icon": "$(target)"
+      },
+      {
+        "command": "tokguess.disablePrecision",
+        "title": "Disable Precision Mode",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.collectorStatus",
+        "title": "Collector Status",
+        "category": "TokGuess"
       }
     ],
     "keybindings": [
@@ -246,6 +262,31 @@
           "type": "number",
           "default": 2000,
           "description": "Show warning icon when function/class exceeds this token count"
+        },
+        "tokguess.precision.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Use OTel local collector for real Copilot token counts"
+        },
+        "tokguess.precision.collectorPort": {
+          "type": "number",
+          "default": 4318,
+          "description": "OTLP HTTP port for local collector"
+        },
+        "tokguess.precision.apiPort": {
+          "type": "number",
+          "default": 4319,
+          "description": "Read API port for local collector"
+        },
+        "tokguess.precision.retentionDays": {
+          "type": "number",
+          "default": 7,
+          "description": "Days to retain OTel spans locally"
+        },
+        "tokguess.precision.autoFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fall back to Chat.log estimation if OTel is silent"
         }
       }
     }

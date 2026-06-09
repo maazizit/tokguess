@@ -61,6 +61,15 @@ export class UsageStore {
     this.notify();
   }
 
+  removeEstimatedCopilot(): void {
+    const before = this.events.length;
+    this.events = this.events.filter((e) => !(e.source === 'copilot' && e.estimated));
+    if (this.events.length !== before) {
+      void this.persist();
+      this.notify();
+    }
+  }
+
   getEvents(): TokenEvent[] {
     return [...this.events];
   }
@@ -295,6 +304,9 @@ function buildSessionTable(events: TokenEvent[]): SessionRow[] {
 }
 
 function formatSessionLabel(sessionId: string, e: TokenEvent): string {
+  if (sessionId.startsWith('otel-')) {
+    return `Agent · ${sessionId.replace('otel-', '')}`;
+  }
   if (sessionId.startsWith('log-')) {
     return sessionId.replace('log-', '').replace('panel/', 'Chat · ');
   }
@@ -322,7 +334,7 @@ function buildDataQuality(
     accuracyLabel = '~95% précis';
   } else if (estimated > 0 && real === 0) {
     sourceLabel = 'Chat.log (estimé)';
-    accuracyLabel = '~50–70% approx.';
+    accuracyLabel = '~75–85% approx.';
   } else if (estimated > 0 && real > 0) {
     sourceLabel = 'Mixte réel + estimé';
     accuracyLabel = 'Variable';

@@ -13,8 +13,13 @@ import { StatusBarController } from './statusBar';
 import { UsageStore } from './storage/usageStore';
 import { AntigravityWatcher } from './watchers/antigravityWatcher';
 import { ClaudeWatcher } from './watchers/claudeWatcher';
+import { MiniCollector } from './collector/miniCollector';
+import { PrecisionModeController } from './precision/precisionMode';
+import { CopilotSettingsManager } from './setup/copilotSettings';
+import { PrecisionWizard } from './setup/precisionWizard';
 import { CopilotLogWatcher } from './watchers/copilotLogWatcher';
 import { CopilotWatcher } from './watchers/copilotWatcher';
+import { OtelWatcher } from './watchers/otelWatcher';
 
 let store: UsageStore;
 let statusBar: StatusBarController;
@@ -31,7 +36,29 @@ let analyticsEngine: ProjectAnalyticsEngine;
 let codeLensProvider: TokenCodeLensProvider;
 let reportExporter: ReportExporter;
 let cacheDetector: CacheDetector;
+let precisionMode: PrecisionModeController;
+let miniCollector: MiniCollector;
+let otelWatcher: OtelWatcher;
+let precisionWizard: PrecisionWizard;
+let copilotSettings: CopilotSettingsManager;
 let enabled = true;
+
+async function startPrecisionPipeline(): Promise<void> {
+  try {
+    await miniCollector.start();
+    const otlp = `http://127.0.0.1:${miniCollector.getOtlpPort()}/v1/traces`;
+    await copilotSettings.inject(otlp);
+    precisionMode.setCollectorRunning(
+      true,
+      miniCollector.getOtlpPort(),
+      miniCollector.getApiPort()
+    );
+    otelWatcher.setApiPort(miniCollector.getApiPort());
+    otelWatcher.startPolling(precisionMode);
+  } catch {
+    precisionMode.checkFallback(true, 0);
+  }
+}
 
 function getFileEstimate(): number {
   const editor = vscode.window.activeTextEditor;
@@ -64,6 +91,12 @@ export function activate(context: vscode.ExtensionContext): void {
   codeLensProvider = new TokenCodeLensProvider();
   reportExporter = new ReportExporter(store);
   cacheDetector = new CacheDetector(context);
+  precisionMode = new PrecisionModeController(context);
+  miniCollector = new MiniCollector();
+  otelWatcher = new OtelWatcher();
+  copilotSettings = new CopilotSettingsManager(context);
+  precisionWizard = new PrecisionWizard(miniCollector, precisionMode, copilotSettings);
+  otelWatcher.activate(context);
 
   copilotWatcher = new CopilotWatcher(config().get('sources.copilot.path'));
   copilotLogWatcher = new CopilotLogWatcher(config().get('sources.copilot.logPath'));
@@ -80,11 +113,19 @@ export function activate(context: vscode.ExtensionContext): void {
     copilotLogWatcher,
     claudeWatcher,
     antigravityWatcher,
-    reportExporter
+    reportExporter,
+    precisionMode
   );
 
   const ingest = (event: Parameters<UsageStore['add']>[0]) => {
     if (!enabled) {
+      return;
+    }
+    if (
+      event.source === 'copilot' &&
+      event.estimated &&
+      precisionMode.shouldSkipEstimatedCopilot()
+    ) {
       return;
     }
     store.add(event);
@@ -110,6 +151,7 @@ export function activate(context: vscode.ExtensionContext): void {
       copilotLogWatcher.onEvent(ingest);
       copilotLogWatcher.activate(context);
     }
+    otelWatcher.onEvent(ingest);
   }
 
   if (config().get('sources.claude.enabled', true)) {
@@ -139,6 +181,28 @@ export function activate(context: vscode.ExtensionContext): void {
       ],
       codeLensProvider
     ),
+
+    vscode.commands.registerCommand('tokguess.enablePrecision', async () => {
+      const ok = await precisionWizard.run();
+      if (ok) {
+        store.removeEstimatedCopilot();
+        await startPrecisionPipeline();
+        refreshUi();
+      }
+    }),
+
+    vscode.commands.registerCommand('tokguess.disablePrecision', async () => {
+      otelWatcher.stopPolling();
+      await precisionWizard.disable();
+      refreshUi();
+    }),
+
+    vscode.commands.registerCommand('tokguess.collectorStatus', () => {
+      const s = precisionMode.getState();
+      void vscode.window.showInformationMessage(
+        `TokGuess collector: ${s.collectorRunning ? 'running' : 'stopped'} · OTel: ${s.status} · spans port ${s.otlpPort}`
+      );
+    }),
 
     vscode.commands.registerCommand('tokguess.openPanel', openDashboard),
     vscode.commands.registerCommand('tokguess.openEnhancedDashboard', openDashboard),
@@ -331,13 +395,20 @@ export function activate(context: vscode.ExtensionContext): void {
     copilotLogWatcher,
     claudeWatcher,
     antigravityWatcher,
+    otelWatcher,
     statusBar
   );
+
+  if (precisionMode.getState().enabled) {
+    void startPrecisionPipeline();
+  }
 
   refreshUi();
 }
 
 export function deactivate(): void {
+  otelWatcher?.dispose();
+  void miniCollector?.stop();
   copilotWatcher?.dispose();
   copilotLogWatcher?.dispose();
   claudeWatcher?.dispose();
