@@ -1,8 +1,8 @@
 {
   "name": "tokguess-copilot",
   "displayName": "TokGuess",
-  "description": "Track Copilot & Claude tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
-  "version": "0.3.2",
+  "description": "Track Copilot, Claude & Antigravity CLI tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
+  "version": "0.5.2",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"
@@ -19,6 +19,8 @@
   "keywords": [
     "copilot",
     "claude",
+    "antigravity",
+    "gemini",
     "tokens",
     "estimate",
     "tokguess",
@@ -81,6 +83,61 @@
         "command": "tokguess.showStats",
         "title": "Show Dashboard",
         "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.openEnhancedDashboard",
+        "title": "Open Enhanced Dashboard",
+        "category": "TokGuess",
+        "icon": "$(graph-line)"
+      },
+      {
+        "command": "tokguess.optimizeContext",
+        "title": "Optimize Context",
+        "category": "TokGuess",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "tokguess.showAnalytics",
+        "title": "Show Analytics",
+        "category": "TokGuess",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "tokguess.checkDailyBudget",
+        "title": "Check Daily Budget",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.showLearningInsights",
+        "title": "Show Learning Insights",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.exportReport",
+        "title": "Export Report",
+        "category": "TokGuess",
+        "icon": "$(export)"
+      },
+      {
+        "command": "tokguess.showBlockInfo",
+        "title": "Show Block Info",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.checkCacheUsage",
+        "title": "Check Cache Usage",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.showCacheStats",
+        "title": "Show Cache Stats",
+        "category": "TokGuess"
+      },
+      {
+        "command": "tokguess.copyTokenCount",
+        "title": "Copy Token Count",
+        "category": "TokGuess",
+        "icon": "$(copy)"
       }
     ],
     "keybindings": [
@@ -128,6 +185,16 @@
           "default": "",
           "description": "Custom Claude logs root path (empty = default)"
         },
+        "tokguess.sources.antigravity.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Watch Antigravity CLI transcripts (~/.gemini/antigravity-cli/brain)"
+        },
+        "tokguess.sources.antigravity.path": {
+          "type": "string",
+          "default": "",
+          "description": "Custom Antigravity brain root path (empty = default)"
+        },
         "tokguess.budget.enabled": {
           "type": "boolean",
           "default": true,
@@ -149,6 +216,36 @@
           "type": "boolean",
           "default": true,
           "description": "Show popup when approaching or exceeding budget"
+        },
+        "tokguess.budget.monthly_cost_usd": {
+          "type": "number",
+          "default": 20,
+          "description": "Monthly budget limit in USD"
+        },
+        "tokguess.budget.daily_tokens": {
+          "type": "number",
+          "default": 50000,
+          "description": "Daily token limit"
+        },
+        "tokguess.budget.per_file_tokens": {
+          "type": "number",
+          "default": 5000,
+          "description": "Maximum tokens per file context"
+        },
+        "tokguess.budget.hard_limit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Block requests when budget exceeded"
+        },
+        "tokguess.codelens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline token estimates for functions and classes"
+        },
+        "tokguess.codelens.warningThreshold": {
+          "type": "number",
+          "default": 2000,
+          "description": "Show warning icon when function/class exceeds this token count"
         }
       }
     }
@@ -159,7 +256,11 @@
     "watch": "tsc -watch -p ./",
     "package": "vsce package"
   },
+  "dependencies": {
+    "chart.js": "^4.5.1"
+  },
   "devDependencies": {
+    "@types/chart.js": "^2.9.41",
     "@types/node": "20.x",
     "@types/vscode": "^1.80.0",
     "typescript": "^5.0.0"
@@ -168,5 +269,13 @@
     "type": "git",
     "url": "https://github.com/maazizit/tokguess.git"
   },
-  "license": "MIT"
+  "bugs": {
+    "url": "https://github.com/maazizit/tokguess/issues"
+  },
+  "homepage": "https://github.com/maazizit/tokguess#readme",
+  "license": "MIT",
+  "author": {
+    "name": "Zahra Maaziz",
+    "email": "zahra.maaziz@gmail.com"
+  }
 }

@@ -16,6 +16,7 @@
       --accent2: #cba6f7;
       --copilot: #3dd68c;
       --claude: #f5a97f;
+      --antigravity: #7dc4e4;
       --real: #3dd68c;
       --estim: #f9e2af;
       --glow: 0 0 40px rgba(137, 180, 250, 0.12);
@@ -100,6 +101,7 @@
     .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: middle; }
     .dot-copilot { background: var(--copilot); }
     .dot-claude { background: var(--claude); }
+    .dot-antigravity { background: var(--antigravity); }
     .models { display: flex; flex-direction: column; gap: 8px; }
     .model-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; font-size: 12px; }
     .bar-bg { height: 5px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; grid-column: 1 / -1; }
@@ -192,7 +194,7 @@
           <tbody id="sessionBody"></tbody>
         </table>
       </div>
-      <div id="sessionEmpty" class="empty" style="display:none">Aucune session — utilise Copilot ou Claude Code, puis Rescan Logs</div>
+      <div id="sessionEmpty" class="empty" style="display:none">Aucune session — utilise Copilot, Claude Code ou Antigravity CLI, puis Rescan Logs</div>
     </div>
 
     <div class="card">
@@ -273,7 +275,7 @@
       document.getElementById('requestsHint').textContent =
         est && real ? real + ' réelles · ' + est + ' estimées' :
         est ? 'toutes ~estimées (Chat.log)' :
-        real ? 'données session-state / Claude' : 'messages Copilot / Claude';
+        real ? 'données session-state / Claude / Antigravity' : 'messages Copilot / Claude / Antigravity';
 
       const tokensHint = document.getElementById('tokensHint');
       tokensHint.textContent = 'in ' + fmtTok(p.inputTokens) + ' · out ' + fmtTok(p.outputTokens) +
@@ -305,6 +307,7 @@
       };
       add('Copilot', d.sources.copilot.active, d.sources.copilot.path);
       add('Claude', d.sources.claude.active, d.sources.claude.path);
+      add('Antigravity', d.sources.antigravity.active, d.sources.antigravity.path);
 
       const models = document.getElementById('models');
       models.innerHTML = '';
@@ -364,7 +367,11 @@
       }
       empty.style.display = 'none';
       body.innerHTML = rows.map((s) => {
-        const dot = s.source === 'claude' ? 'dot-claude' : 'dot-copilot';
+        const dot = s.source === 'claude'
+          ? 'dot-claude'
+          : s.source === 'antigravity'
+            ? 'dot-antigravity'
+            : 'dot-copilot';
         const rel = s.estimated
           ? '<span class="badge estim">~estimé</span>'
           : '<span class="badge real">réel</span>';

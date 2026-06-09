@@ -13,6 +13,9 @@ const RATES: Record<string, ModelRate> = {
   'claude-sonnet-4-20250514': { inputPer1M: 3, outputPer1M: 15 },
   'claude-opus-4': { inputPer1M: 15, outputPer1M: 75 },
   'claude-3-5-sonnet': { inputPer1M: 3, outputPer1M: 15 },
+  'gemini-2.5-pro': { inputPer1M: 1.25, outputPer1M: 10 },
+  'gemini-2.5-flash': { inputPer1M: 0.15, outputPer1M: 0.6 },
+  'gemini': { inputPer1M: 1.25, outputPer1M: 10 },
   'copilot': { inputPer1M: 2.5, outputPer1M: 10 }
 };
 

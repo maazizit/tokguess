@@ -1,22 +1,24 @@
 # TokGuess
 
-Track **real** AI token usage from local session logs — plus file estimates before you send.
-
-Inspired by [Token Watch](https://marketplace.visualstudio.com/items?itemName=alvin0-dinhai.token-watch) and [Eating Token](https://marketplace.visualstudio.com/items?itemName=manishsatwani.eatingtoken), but lighter and TokViz-branded.
+Track **real** AI token usage from local session logs — plus file estimates before you send. 100% local, zero cloud.
 
 ## How it works
 
 ```text
-Copilot  → ~/.copilot/session-state/*/events.jsonl  → real tokens
-Claude   → ~/.claude/projects/**/*.jsonl            → real tokens
-Editor   → chars ÷ 4.2                              → file estimate
+Copilot           → VS Code logs (ccreq patterns)                     → ~75-85% estimated
+Copilot (legacy)  → ~/.copilot/session-state/*/events.jsonl      → real tokens (rare)
+Claude            → ~/.claude/projects/**/*.jsonl                 → real tokens
+Antigravity CLI   → ~/.gemini/antigravity-cli/brain/*/transcript → real or ~estim
+Editor            → chars ÷ 4.2                                    → ~90-95% estim
 ```
 
-| Layer | Source | Accuracy |
-|-------|--------|----------|
-| **Copilot Watcher** | `events.jsonl` (assistant.message, session.shutdown) | Real API tokens |
-| **Claude Watcher** | Claude Code JSONL (`message.usage`) | Real API tokens |
-| **File Estimator** | Open file in editor | ~90–95% approx. |
+| Layer | Source | Accuracy | Status |
+|-------|--------|----------|--------|
+| **Copilot Log Watcher** | VS Code `GitHub Copilot Chat.log` (ccreq) | **~75-85%** context-aware estimation | ✅ **Active** |
+| **Copilot Watcher** | `~/.copilot/session-state/events.jsonl` | Real API tokens | ⚠️ Rare (disabled by default) |
+| **Claude Watcher** | Claude Desktop `*.jsonl` (`message.usage`) | Real API tokens | ✅ Active if installed |
+| **Antigravity Watcher** | Google Gemini CLI `transcript.jsonl` | Real or content estimate | ✅ Active if installed (Note: **Gemini CLI deprecated 18/06/2026**, Antigravity CLI is new standard) |
+| **File Estimator** | Open file in editor | ~90–95% approx. | ✅ Always active |
 
 No cloud. No prompt content stored — only token counts and metadata.
 
@@ -60,12 +62,41 @@ Selection     → file tokens + selection tokens
 | `tokguess.budget.alerts` | `true` |
 | `tokguess.sources.copilot.enabled` | `true` |
 | `tokguess.sources.claude.enabled` | `true` |
+| `tokguess.sources.antigravity.enabled` | `true` |
 | `tokguess.sources.copilot.path` | `~/.copilot/session-state` |
 | `tokguess.sources.claude.path` | `~/.claude/projects` |
+| `tokguess.sources.antigravity.path` | `~/.gemini/antigravity-cli/brain` |
+| `tokguess.budget.monthly_cost_usd` | `20` |
+| `tokguess.budget.daily_tokens` | `50000` |
+| `tokguess.budget.per_file_tokens` | `5000` |
+
+## Estimation Accuracy
+
+### Copilot (Improved June 2026)
+
+**TokGuess now uses context-aware estimation for Copilot** since `events.jsonl` is rarely available:
+
+- ✅ **Panel/Edit Agent**: 4k base input, 10:1 ratio → ~75-85% accuracy
+- ✅ **Autocomplete**: 1k base input, 12:1 ratio → ~80-90% accuracy  
+- ✅ **Chat**: 2k base input, 5:1 ratio → ~75-85% accuracy
+- ✅ **Real model rates**: GPT-4o-mini (165 tok/s), Claude Sonnet 4.5 (120 tok/s)
+- ✅ **Network latency subtracted**: 150-300ms depending on model
+
+**Previous formula**: Fixed 5:1 ratio, generic rates → ~35-45% accuracy ❌  
+**New formula**: Context profiles + real benchmarks → **~75-85% accuracy** ✅
+
+See [AMÉLIORATION-ESTIMATION.md](AMÉLIORATION-ESTIMATION.md) for technical details.
+
+### Other Sources
+
+- **Claude Desktop**: Real API tokens from `message.usage` → **100% accurate** ✅
+- **Antigravity CLI**: Real tokens from `usage`/`token_usage` fields, or content estimation → **95-100%** ✅
+- **File Estimator**: Character count ÷ 4.2 → **~90-95%** ✅
 
 ## Disclaimer
 
-- **Session tokens** = real counts from local Copilot/Claude logs when available
+- **Copilot tokens** = context-aware estimation (~75-85%), not official billing
+- **Claude/Antigravity tokens** = real counts from local logs when available
 - **Context Budget** = local file estimate (~90–95%), not official billing
 - **Cost** = public API rates (approx.)
 

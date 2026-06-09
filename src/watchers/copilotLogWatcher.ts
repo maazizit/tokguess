@@ -18,13 +18,31 @@ export interface CopilotLogEntry {
 const CCREQ_PATTERN =
   /ccreq:([a-f0-9]+)\.copilotmd\s*\|\s*(success|error)\s*\|\s*([^|]+?)\s*\|\s*(\d+)ms\s*\|\s*\[([^\]]+)\]/;
 
-const MODEL_OUTPUT_RATES: Record<string, number> = {
-  'gpt-4o-mini': 120,
-  'gpt-4o': 80,
-  'claude-opus': 40,
-  'claude-sonnet': 80,
-  'claude-haiku': 100,
-  default: 60
+// Real-world token generation rates (tokens/sec output) + network latency
+const MODEL_OUTPUT_RATES: Record<string, { rate: number; latency: number }> = {
+  'gpt-4o-mini': { rate: 165, latency: 150 },
+  'gpt-4o': { rate: 110, latency: 180 },
+  'claude-sonnet-4.5': { rate: 120, latency: 220 },
+  'claude-sonnet-3.5': { rate: 110, latency: 200 },
+  'claude-sonnet': { rate: 110, latency: 200 },
+  'claude-opus': { rate: 70, latency: 300 },
+  'claude-haiku': { rate: 200, latency: 120 },
+  default: { rate: 100, latency: 200 }
+};
+
+// Context-aware estimation profiles (based on Copilot request types)
+interface ContextProfile {
+  baseInput: number;    // Minimum input tokens for this context
+  inputRatio: number;   // Typical input:output ratio
+  overhead: number;     // Additional processing overhead (ms)
+}
+
+const CONTEXT_PROFILES: Record<string, ContextProfile> = {
+  'panel/editAgent': { baseInput: 4000, inputRatio: 10, overhead: 300 },
+  'panel/chat': { baseInput: 2000, inputRatio: 5, overhead: 200 },
+  'copilotLanguageModelWrapper': { baseInput: 1000, inputRatio: 12, overhead: 150 },
+  'workspace/command': { baseInput: 2500, inputRatio: 7, overhead: 250 },
+  default: { baseInput: 1500, inputRatio: 8, overhead: 200 }
 };
 
 export function parseCcreqLine(line: string): CopilotLogEntry | null {
@@ -51,18 +69,37 @@ export function parseCcreqLine(line: string): CopilotLogEntry | null {
   };
 }
 
-function estimateFromDuration(model: string, durationMs: number): { input: number; output: number } {
+function estimateFromDuration(
+  model: string,
+  durationMs: number,
+  context: string
+): { input: number; output: number } {
+  // 1. Detect context profile
+  const profile = CONTEXT_PROFILES[context] || CONTEXT_PROFILES.default;
+
+  // 2. Detect model config
   const normalized = model.toLowerCase();
-  let rate = MODEL_OUTPUT_RATES.default;
-  for (const [key, r] of Object.entries(MODEL_OUTPUT_RATES)) {
+  let config = MODEL_OUTPUT_RATES.default;
+  for (const [key, conf] of Object.entries(MODEL_OUTPUT_RATES)) {
     if (key !== 'default' && normalized.includes(key)) {
-      rate = r;
+      config = conf;
       break;
     }
   }
-  const effective = Math.max(durationMs - 200, 100);
-  const output = Math.ceil(((effective * 0.6) / 1000) * rate);
-  return { input: Math.ceil(output * 5), output };
+
+  // 3. Calculate effective generation time (subtract latency + overhead)
+  const generationTime = Math.max(durationMs - config.latency - profile.overhead, 100);
+
+  // 4. Estimate output tokens from generation time
+  const output = Math.ceil((generationTime / 1000) * config.rate);
+
+  // 5. Estimate input based on context profile and output
+  const input = Math.max(
+    profile.baseInput,
+    Math.ceil(output * profile.inputRatio)
+  );
+
+  return { input, output };
 }
 
 export class CopilotLogWatcher implements vscode.Disposable {
@@ -245,7 +282,7 @@ export class CopilotLogWatcher implements vscode.Disposable {
           continue;
         }
 
-        const est = estimateFromDuration(entry.model, entry.durationMs);
+        const est = estimateFromDuration(entry.model, entry.durationMs, entry.context);
         this.emit({
           id: `copilot-log:${entry.requestId}`,
           timestamp: entry.timestamp,

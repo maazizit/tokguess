@@ -6,6 +6,7 @@ import { UsageStore } from '../storage/usageStore';
 import { CopilotLogWatcher } from '../watchers/copilotLogWatcher';
 import { CopilotWatcher } from '../watchers/copilotWatcher';
 import { ClaudeWatcher } from '../watchers/claudeWatcher';
+import { AntigravityWatcher } from '../watchers/antigravityWatcher';
 
 export class DashboardProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'tokguess.dashboard';
@@ -18,6 +19,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     private readonly copilot: CopilotWatcher,
     private readonly copilotLog: CopilotLogWatcher,
     private readonly claude: ClaudeWatcher,
+    private readonly antigravity: AntigravityWatcher,
     private readonly getFileEstimate: () => number
   ) {
     store.onChange(() => this.push());
@@ -75,6 +77,11 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         enabled: config.get<boolean>('sources.claude.enabled', true),
         path: this.claude.paths.join(', '),
         active: this.claude.isActive()
+      },
+      antigravity: {
+        enabled: config.get<boolean>('sources.antigravity.enabled', true),
+        path: this.antigravity.paths.join(', '),
+        active: this.antigravity.isActive()
       }
     });
     payload.contextBudget = {

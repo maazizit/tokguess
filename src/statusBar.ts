@@ -43,18 +43,69 @@ export class StatusBarController implements vscode.Disposable {
 
     const dash = this.store.buildDashboard('today', this.budgetSnap.fileTokens, {
       copilot: { enabled: true, path: '', active: false },
-      claude: { enabled: true, path: '', active: false }
+      claude: { enabled: true, path: '', active: false },
+      antigravity: { enabled: true, path: '', active: false }
     });
 
     const total = dash.today.totalTokens + dash.liveCopilotOutput;
     const cost = dash.today.cost;
 
     if (total > 0) {
-      this.usageItem.text = `🤖 ${formatTokens(total)} · ${formatCost(cost)}`;
-      this.usageItem.tooltip = `TokGuess today\n${total.toLocaleString()} tokens · ${formatCost(cost)}\nClick for dashboard`;
+      // Enhanced status with contextual state
+      const budgetPercent = this.budgetSnap.enabled 
+        ? Math.round((this.budgetSnap.contextTokens / this.budgetSnap.threshold) * 100)
+        : 0;
+      
+      // State-based text
+      let icon = '💎';
+      if (this.budgetSnap.level === 'over') {
+        icon = '🔴';
+      } else if (this.budgetSnap.level === 'warn') {
+        icon = '⚠️';
+      }
+      
+      this.usageItem.text = `${icon} ${formatTokens(total)} · ${formatCost(cost)}`;
+      
+      // Rich markdown tooltip
+      const tooltip = new vscode.MarkdownString();
+      tooltip.supportHtml = true;
+      tooltip.isTrusted = true;
+      
+      tooltip.appendMarkdown(`### 💎 TokGuess Session\n\n`);
+      tooltip.appendMarkdown(`**Today:** ${total.toLocaleString()} tokens  \n`);
+      tooltip.appendMarkdown(`**Cost:** ${formatCost(cost)}  \n`);
+      
+      // Show current file estimate if active editor
+      const editor = vscode.window.activeTextEditor;
+      if (editor && this.budgetSnap.enabled) {
+        tooltip.appendMarkdown(`**This file:** ~${this.budgetSnap.fileTokens.toLocaleString()} tokens  \n`);
+      }
+      
+      // Show top model
+      if (dash.topModels.length > 0) {
+        const topModel = dash.topModels[0];
+        tooltip.appendMarkdown(`**Top model:** ${topModel.model}  \n`);
+      }
+      
+      // Budget status
+      if (this.budgetSnap.enabled && budgetPercent > 0) {
+        const budgetIcon = this.budgetSnap.level === 'over' ? '🔴' : 
+                          this.budgetSnap.level === 'warn' ? '🟡' : '🟢';
+        tooltip.appendMarkdown(`**Budget:** ${budgetIcon} ${budgetPercent}% of limit  \n`);
+      }
+      
+      tooltip.appendMarkdown(`\n---\n\n`);
+      tooltip.appendMarkdown(`💡 *Click for full dashboard*`);
+      
+      this.usageItem.tooltip = tooltip;
     } else {
-      this.usageItem.text = '🤖 TokGuess';
-      this.usageItem.tooltip = 'TokGuess — session usage today\nClick for dashboard';
+      this.usageItem.text = '💎 TokGuess';
+      const tooltip = new vscode.MarkdownString();
+      tooltip.appendMarkdown(`### 💎 TokGuess\n\n`);
+      tooltip.appendMarkdown(`**Status:** Monitoring active  \n`);
+      tooltip.appendMarkdown(`**Today:** No usage yet  \n`);
+      tooltip.appendMarkdown(`\n💡 *Click for dashboard*`);
+      this.usageItem.tooltip = tooltip;
     }
   }
 

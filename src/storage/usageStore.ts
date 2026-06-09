@@ -65,6 +65,13 @@ export class UsageStore {
     return [...this.events];
   }
 
+  /**
+   * Alias for getEvents - used by ReportExporter
+   */
+  getAllEvents(): TokenEvent[] {
+    return this.getEvents();
+  }
+
   buildDashboard(
     period: 'today' | 'week' | 'month',
     fileEstimate: number,
@@ -189,7 +196,7 @@ function aggregateDay(events: TokenEvent[], date: string): DayStats {
     cost: 0,
     events: events.length,
     byModel: {},
-    bySource: { copilot: 0, claude: 0, estimate: 0 },
+    bySource: { copilot: 0, claude: 0, antigravity: 0, estimate: 0 },
     hourly
   };
 
@@ -211,7 +218,7 @@ function aggregatePeriod(events: TokenEvent[], label: 'today' | 'week' | 'month'
     cost: 0,
     events: events.length,
     byModel: {},
-    bySource: { copilot: 0, claude: 0, estimate: 0 },
+    bySource: { copilot: 0, claude: 0, antigravity: 0, estimate: 0 },
     hourly: Array.from({ length: 24 }, () => 0)
   };
   for (const e of events) {
@@ -294,7 +301,11 @@ function formatSessionLabel(sessionId: string, e: TokenEvent): string {
   if (sessionId.length > 12) {
     return sessionId.slice(0, 8) + '…';
   }
-  return e.source === 'claude' ? 'Claude Code' : 'Copilot';
+  return e.source === 'claude'
+    ? 'Claude Code'
+    : e.source === 'antigravity'
+      ? 'Antigravity CLI'
+      : 'Copilot';
 }
 
 function buildDataQuality(

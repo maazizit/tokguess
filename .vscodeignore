@@ -5,3 +5,7 @@ tsconfig.json
 QUICKSTART.md
 INSTALL.md
 **/*.map
+demo-improvements.*
+AMÉLIORATION-ESTIMATION.md
+PUBLISH.md
+tokguess-copilot-*.vsix

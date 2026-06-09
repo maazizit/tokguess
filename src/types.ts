@@ -1,4 +1,4 @@
-export type TokenSource = 'copilot' | 'claude' | 'estimate';
+export type TokenSource = 'copilot' | 'claude' | 'antigravity' | 'estimate';
 
 export interface TokenEvent {
   id: string;
@@ -106,5 +106,6 @@ export interface DashboardPayload {
   sources: {
     copilot: { enabled: boolean; path: string; active: boolean };
     claude: { enabled: boolean; path: string; active: boolean };
+    antigravity: { enabled: boolean; path: string; active: boolean };
   };
 }
