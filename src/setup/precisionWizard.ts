@@ -15,24 +15,22 @@ export class PrecisionWizard {
     const config = vscode.workspace.getConfiguration('tokguess');
     if (!config.get<boolean>('sources.copilot.enabled', true)) {
       void vscode.window.showWarningMessage(
-        'Plus de précision est réservé à GitHub Copilot. Active Copilot dans les settings TokGuess.'
+        'Precision mode is GitHub Copilot only. Enable Copilot in TokGuess settings first.'
       );
       return false;
     }
 
     const step1 = await vscode.window.showInformationMessage(
-      'TokGuess — Plus de précision (1/3)\n\nTokGuess va activer la télémétrie VS Code pour lire les vrais tokens Copilot. Tout reste sur localhost.',
+      'TokGuess — Precision Mode (1/3)\n\nTokGuess will enable VS Code telemetry to read real Copilot token counts. Everything stays on localhost.',
       { modal: true },
-      'Continuer'
+      'Continue'
     );
-    if (step1 !== 'Continuer') {
+    if (step1 !== 'Continue') {
       return false;
     }
 
     try {
       await this.collector.start();
-      const otlp = `http://127.0.0.1:${this.collector.getOtlpPort()}/v1/traces`;
-      await this.settings.inject(otlp);
       this.precision.setCollectorRunning(
         true,
         this.collector.getOtlpPort(),
@@ -40,17 +38,27 @@ export class PrecisionWizard {
       );
     } catch (e) {
       void vscode.window.showErrorMessage(
-        `Impossible de démarrer le collecteur local: ${e instanceof Error ? e.message : 'erreur'}`
+        `Could not start the local collector: ${e instanceof Error ? e.message : 'error'}`
       );
       return false;
     }
 
+    // Settings injection is best-effort: unregistered keys are skipped
+    // (depends on VS Code/Copilot version), never blocks the wizard.
+    const otlp = `http://127.0.0.1:${this.collector.getOtlpPort()}/v1/traces`;
+    const result = await this.settings.inject(otlp);
+    if (result.skipped.length > 0 && result.applied.length === 0) {
+      void vscode.window.showWarningMessage(
+        'TokGuess: your VS Code version does not expose OTel telemetry settings. The collector is running, but Copilot may not emit traces — auto fallback to estimation.'
+      );
+    }
+
     const step2 = await vscode.window.showInformationMessage(
-      `TokGuess — Plus de précision (2/3)\n\nCollecteur local actif sur 127.0.0.1:${this.collector.getOtlpPort()}.\nAucune donnée ne quitte ta machine.`,
+      `TokGuess — Precision Mode (2/3)\n\nLocal collector running on 127.0.0.1:${this.collector.getOtlpPort()}.\nNo data leaves your machine.`,
       { modal: true },
-      'Vérifier'
+      'Verify'
     );
-    if (step2 !== 'Vérifier') {
+    if (step2 !== 'Verify') {
       await this.collector.stop();
       await this.settings.revert();
       return false;
@@ -59,11 +67,11 @@ export class PrecisionWizard {
     const healthy = await this.healthCheck();
     const step3 = await vscode.window.showInformationMessage(
       healthy
-        ? 'TokGuess — Plus de précision (3/3)\n\n✅ Collecteur connecté. Utilise Copilot puis Reload Window pour finaliser.'
-        : 'TokGuess — Plus de précision (3/3)\n\n⚠️ Collecteur prêt mais pas encore de traces. Reload Window, puis utilise Copilot.',
+        ? 'TokGuess — Precision Mode (3/3)\n\n✅ Collector connected. Use Copilot, then Reload Window to finish.'
+        : 'TokGuess — Precision Mode (3/3)\n\n⚠️ Collector ready but no traces yet. Reload Window, then use Copilot.',
       { modal: true },
       'Reload Window',
-      'Plus tard'
+      'Later'
     );
 
     await this.precision.enable();
@@ -79,7 +87,7 @@ export class PrecisionWizard {
     await this.collector.stop();
     await this.settings.revert();
     await this.precision.disable();
-    void vscode.window.showInformationMessage('TokGuess: mode standard restauré (estimation Chat.log).');
+    void vscode.window.showInformationMessage('TokGuess: standard mode restored (Chat.log estimation).');
   }
 
   private healthCheck(): Promise<boolean> {

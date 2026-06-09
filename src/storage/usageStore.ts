@@ -326,17 +326,17 @@ function buildDataQuality(
   real: number
 ): DataQuality {
   const total = events.length;
-  let sourceLabel = 'Aucune source';
+  let sourceLabel = 'No source';
   let accuracyLabel = '—';
 
   if (real > 0 && estimated === 0) {
-    sourceLabel = 'Logs API (réels)';
-    accuracyLabel = '~95% précis';
+    sourceLabel = 'API logs (real)';
+    accuracyLabel = '~95% accurate';
   } else if (estimated > 0 && real === 0) {
-    sourceLabel = 'Chat.log (estimé)';
+    sourceLabel = 'Chat.log (estimated)';
     accuracyLabel = '~75–85% approx.';
   } else if (estimated > 0 && real > 0) {
-    sourceLabel = 'Mixte réel + estimé';
+    sourceLabel = 'Mixed real + estimated';
     accuracyLabel = 'Variable';
   }
 
@@ -373,8 +373,8 @@ function buildDayCompare(events: TokenEvent[], now: number): PeriodCompare {
     prev.tokens > 0 ? Math.round(((cur.tokens - prev.tokens) / prev.tokens) * 100) : cur.tokens > 0 ? 100 : 0;
 
   return {
-    currentLabel: "Aujourd'hui",
-    previousLabel: 'Hier',
+    currentLabel: 'Today',
+    previousLabel: 'Yesterday',
     currentRequests: cur.requests,
     previousRequests: prev.requests,
     currentTokens: cur.tokens,

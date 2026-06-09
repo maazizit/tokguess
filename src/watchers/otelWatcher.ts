@@ -38,7 +38,7 @@ export class OtelWatcher implements vscode.Disposable {
       const timeout = 5 * 60 * 1000;
       if (precision.checkFallback(auto, timeout)) {
         void vscode.window.showWarningMessage(
-          'TokGuess: OTel silencieux — retour mode estimé (Chat.log).'
+          'TokGuess: OTel is silent — falling back to estimated mode (Chat.log).'
         );
       }
     }, 30_000);

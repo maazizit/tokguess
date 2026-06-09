@@ -1,42 +1,55 @@
 import * as vscode from 'vscode';
 
-const PRECISION_KEYS = [
-  'github.copilot.chat.logging',
-  'telemetry.telemetryLevel',
-  'telemetry.enableTelemetry'
-] as const;
-
 const BACKUP_KEY = 'tokguess.precision.settingsBackup';
 
-export interface InjectedSettings {
-  otlpEndpoint: string;
+interface SettingSpec {
+  key: string;
+  value: unknown;
+}
+
+export interface InjectResult {
+  applied: string[];
+  skipped: string[];
 }
 
 export class CopilotSettingsManager {
   constructor(private readonly context: vscode.ExtensionContext) {}
 
-  async inject(otlpEndpoint: string): Promise<void> {
+  /**
+   * Try to enable telemetry-related settings. Unregistered keys (depends on
+   * VS Code / Copilot version) are skipped silently — the collector works
+   * regardless; these settings only improve the chance VS Code emits OTel.
+   */
+  async inject(otlpEndpoint: string): Promise<InjectResult> {
+    const specs: SettingSpec[] = [
+      { key: 'telemetry.telemetryLevel', value: 'all' },
+      { key: 'telemetry.enableTelemetry', value: true },
+      { key: 'github.copilot.chat.logging', value: true },
+      { key: 'opentelemetry.exporter.otlp.endpoint', value: otlpEndpoint }
+    ];
+
     const config = vscode.workspace.getConfiguration();
     const backup: Record<string, unknown> =
       this.context.globalState.get(BACKUP_KEY, {}) ?? {};
+    const applied: string[] = [];
+    const skipped: string[] = [];
 
-    for (const key of PRECISION_KEYS) {
-      if (backup[key] === undefined) {
-        backup[key] = config.get(key);
+    for (const spec of specs) {
+      try {
+        if (!(spec.key in backup)) {
+          backup[spec.key] = config.get(spec.key);
+        }
+        await config.update(spec.key, spec.value, vscode.ConfigurationTarget.Global);
+        applied.push(spec.key);
+      } catch {
+        // Not a registered configuration in this VS Code version — skip.
+        delete backup[spec.key];
+        skipped.push(spec.key);
       }
     }
-    await this.context.globalState.update(BACKUP_KEY, backup);
 
-    await config.update('github.copilot.chat.logging', true, vscode.ConfigurationTarget.Global);
-    await config.update('telemetry.enableTelemetry', true, vscode.ConfigurationTarget.Global);
-    await config.update('telemetry.telemetryLevel', 'all', vscode.ConfigurationTarget.Global);
-
-    const otelConfig = vscode.workspace.getConfiguration('opentelemetry');
-    if (backup['opentelemetry.exporter.otlp.endpoint'] === undefined) {
-      backup['opentelemetry.exporter.otlp.endpoint'] = otelConfig.get('exporter.otlp.endpoint');
-    }
-    await otelConfig.update('exporter.otlp.endpoint', otlpEndpoint, vscode.ConfigurationTarget.Global);
     await this.context.globalState.update(BACKUP_KEY, backup);
+    return { applied, skipped };
   }
 
   async revert(): Promise<void> {
@@ -46,27 +59,16 @@ export class CopilotSettingsManager {
     }
 
     const config = vscode.workspace.getConfiguration();
-    for (const key of PRECISION_KEYS) {
-      if (key in backup) {
-        const val = backup[key];
-        if (val === undefined) {
-          await config.update(key, undefined, vscode.ConfigurationTarget.Global);
-        } else {
-          await config.update(key, val as string | boolean, vscode.ConfigurationTarget.Global);
-        }
+    for (const [key, val] of Object.entries(backup)) {
+      try {
+        await config.update(
+          key,
+          val === null ? undefined : val,
+          vscode.ConfigurationTarget.Global
+        );
+      } catch {
+        /* key no longer registered — nothing to revert */
       }
-    }
-
-    const otelEndpoint = backup['opentelemetry.exporter.otlp.endpoint'];
-    const otelConfig = vscode.workspace.getConfiguration('opentelemetry');
-    if (otelEndpoint === undefined) {
-      await otelConfig.update('exporter.otlp.endpoint', undefined, vscode.ConfigurationTarget.Global);
-    } else {
-      await otelConfig.update(
-        'exporter.otlp.endpoint',
-        otelEndpoint as string,
-        vscode.ConfigurationTarget.Global
-      );
     }
 
     await this.context.globalState.update(BACKUP_KEY, undefined);

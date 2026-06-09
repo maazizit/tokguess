@@ -118,10 +118,10 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
 
     const precision = this.precision.getState();
     if (precision.status === 'otel') {
-      dashboard.dataQuality.sourceLabel = 'OTel local · tokens réels Copilot';
-      dashboard.dataQuality.accuracyLabel = 'réel (Copilot)';
+      dashboard.dataQuality.sourceLabel = 'Local OTel · real Copilot tokens';
+      dashboard.dataQuality.accuracyLabel = 'real (Copilot)';
     } else if (precision.status === 'fallback') {
-      dashboard.dataQuality.sourceLabel = 'Fallback Chat.log · OTel indisponible';
+      dashboard.dataQuality.sourceLabel = 'Chat.log fallback · OTel unavailable';
       dashboard.dataQuality.accuracyLabel = '~75–85% approx.';
     }
 
@@ -149,7 +149,7 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
     const themeClass = this._isDarkMode ? 'theme-dark' : 'theme-light';
 
     return `<!DOCTYPE html>
-<html lang="fr" class="${themeClass}">
+<html lang="en" class="${themeClass}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -157,90 +157,212 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
   <script src="${chartJsUri}"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     .theme-dark {
-      --bg: #1e1e1e; --card: #252526; --muted: #999; --text: #ccc;
-      --border: #3e3e42; --accent: #007acc; --accent-hover: #005a9e;
-      --success: #4ec9b0; --warning: #f48771; --up: #f38ba8; --down: #3dd68c;
+      --bg: #0f1117;
+      --bg-grad: radial-gradient(1100px 500px at 15% -10%, #1a2036, var(--bg));
+      --card: rgba(30, 33, 48, 0.72);
+      --card-solid: #1d2130;
+      --border: rgba(137, 180, 250, 0.16);
+      --text: #e7eaf2;
+      --muted: #8b93a7;
+      --accent: #89b4fa;
+      --accent2: #cba6f7;
+      --green: #3dd68c;
+      --yellow: #f9e2af;
+      --red: #f38ba8;
+      --chart-fill: rgba(137, 180, 250, 0.14);
+      --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+      --pill-bg: rgba(137, 180, 250, 0.10);
     }
     .theme-light {
-      --bg: #fff; --card: #f3f3f3; --muted: #666; --text: #333;
-      --border: #d4d4d4; --accent: #0066cc; --accent-hover: #004c99;
-      --success: #16825d; --warning: #d97634; --up: #c42b1c; --down: #16825d;
+      --bg: #f6f7fb;
+      --bg-grad: radial-gradient(1100px 500px at 15% -10%, #e8edfb, var(--bg));
+      --card: rgba(255, 255, 255, 0.85);
+      --card-solid: #ffffff;
+      --border: rgba(70, 90, 140, 0.14);
+      --text: #1c2333;
+      --muted: #66708a;
+      --accent: #3b6fe0;
+      --accent2: #8a5fd6;
+      --green: #14855c;
+      --yellow: #b07c1f;
+      --red: #c4314b;
+      --chart-fill: rgba(59, 111, 224, 0.12);
+      --shadow: 0 8px 24px rgba(28, 35, 51, 0.08);
+      --pill-bg: rgba(59, 111, 224, 0.08);
     }
+
     body {
-      padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: var(--text); background: var(--bg); transition: background .3s, color .3s;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+      background: var(--bg-grad);
+      min-height: 100vh;
       font-size: 13px;
+      transition: background .3s ease, color .3s ease;
     }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-    h1 { font-size: 17px; font-weight: 700; }
-    .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .controls, .filters { display: flex; gap: 6px; flex-wrap: wrap; }
-    button, .chip {
-      padding: 6px 12px; border-radius: 999px; font-size: 11px; cursor: pointer;
-      border: 1px solid var(--border); background: transparent; color: var(--muted);
+
+    /* ---------- Header ---------- */
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .logo {
+      width: 38px; height: 38px; border-radius: 11px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center;
+      font-weight: 800; font-size: 15px; color: #fff;
+      box-shadow: var(--shadow);
     }
-    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    button.primary:hover { background: var(--accent-hover); }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
-    .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .banner {
-      padding: 8px 12px; border-radius: 8px; background: var(--card);
-      border: 1px solid var(--border); color: var(--muted); font-size: 11px; margin-bottom: 12px;
+    h1 { font-size: 17px; font-weight: 750; letter-spacing: -0.01em; }
+    .sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    /* ---------- Controls ---------- */
+    .toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .segment {
+      display: inline-flex; background: var(--card); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px; box-shadow: var(--shadow);
+    }
+    .segment button {
+      border: none; background: transparent; color: var(--muted);
+      padding: 5px 13px; font-size: 11px; font-weight: 600; border-radius: 999px;
+      cursor: pointer; transition: all .18s ease;
+    }
+    .segment button.active {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+    }
+    .iconbar { display: inline-flex; gap: 6px; }
+    .iconbar button {
+      border: 1px solid var(--border); background: var(--card); color: var(--text);
+      width: 30px; height: 30px; border-radius: 9px; cursor: pointer;
+      display: grid; place-items: center; font-size: 13px;
+      transition: transform .15s ease, border-color .15s ease;
+    }
+    .iconbar button:hover { transform: translateY(-1px); border-color: var(--accent); }
+    .precision-btn {
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 6px 13px; font-size: 11px; font-weight: 650; cursor: pointer;
+      background: var(--card); color: var(--text);
+      transition: all .18s ease;
+    }
+    .precision-btn[data-mode="off"]:hover { border-color: var(--accent); color: var(--accent); }
+    .precision-btn[data-mode="on"] {
+      background: linear-gradient(135deg, var(--green), #7ee8b5); color: #08291a; border-color: transparent;
+    }
+    .precision-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ---------- Status pills ---------- */
+    .status-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 600; padding: 4px 10px;
+      border-radius: 999px; background: var(--pill-bg);
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot.ok { background: var(--green); }
+    .dot.warn { background: var(--yellow); }
+    .dot.info { background: var(--accent); }
+
+    /* ---------- Cards ---------- */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 15px 16px; margin-bottom: 12px;
+      backdrop-filter: blur(10px); box-shadow: var(--shadow);
+    }
+    .label {
+      font-size: 10px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .08em; font-weight: 650; margin-bottom: 7px;
     }
     .hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
-    .card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
-      margin-bottom: 12px;
+    .stat { position: relative; overflow: hidden; }
+    .stat::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 14px 14px 0 0;
     }
-    .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-    .value { font-size: 22px; font-weight: 800; }
-    .hint { font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .value { font-size: 23px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+    .hint { font-size: 10px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+
+    /* ---------- Compare table ---------- */
     .compare-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .compare-table th, .compare-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    .compare-table th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+    .compare-table tr:last-child td { border-bottom: none; }
     .compare-table .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .delta { font-weight: 600; font-size: 11px; margin-top: 8px; }
-    .delta.up { color: var(--up); } .delta.down { color: var(--down); } .delta.flat { color: var(--muted); }
-    .chart-box { height: 180px; position: relative; }
-    .budget-fill { height: 100%; background: var(--accent); transition: width .3s; }
-    .budget-bar { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; margin: 8px 0; }
-    .model-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
-    .model-item:last-child { border-bottom: none; }
-    .loading { text-align: center; padding: 40px; color: var(--muted); }
+    .delta {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-weight: 700; font-size: 11px; margin-top: 9px;
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .delta.up { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
+    .delta.down { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+    .delta.flat { color: var(--muted); background: var(--pill-bg); }
+
+    /* ---------- Chart ---------- */
+    .chart-box { height: 185px; position: relative; margin-top: 4px; }
+
+    /* ---------- Budget ---------- */
+    .budget-bar { height: 9px; background: var(--border); border-radius: 99px; overflow: hidden; margin: 9px 0 7px; }
+    .budget-fill {
+      height: 100%; border-radius: 99px; transition: width .4s ease;
+      background: linear-gradient(90deg, var(--green), #7ee8b5);
+    }
+    .budget-fill.warn { background: linear-gradient(90deg, var(--yellow), #fab387); }
+    .budget-fill.over { background: linear-gradient(90deg, var(--red), #eba0ac); }
+
+    /* ---------- Models ---------- */
+    .model-row { margin-bottom: 11px; }
+    .model-row:last-child { margin-bottom: 0; }
+    .model-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+    .model-name { font-weight: 600; }
+    .model-meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .bar-bg { height: 5px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s ease; }
+
+    .loading { text-align: center; padding: 48px 0; color: var(--muted); }
+    .footer { text-align: center; font-size: 10px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
     @media (max-width: 640px) { .hero { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="header">
-    <div>
-      <h1>TokGuess</h1>
-      <div class="sub">Suivi tokens · 100% local</div>
+    <div class="brand">
+      <div class="logo">TG</div>
+      <div>
+        <h1>TokGuess</h1>
+        <div class="sub">Token tracking · 100% local</div>
+      </div>
     </div>
-    <div class="controls">
-      <button class="chip${this._period === 'today' ? ' active' : ''}" data-period="today">Aujourd'hui</button>
-      <button class="chip${this._period === 'week' ? ' active' : ''}" data-period="week">7 jours</button>
-      <button class="chip${this._period === 'month' ? ' active' : ''}" data-period="month">30 jours</button>
-      <button onclick="toggleTheme()">${this._isDarkMode ? '☀️ Light' : '🌙 Dark'}</button>
-      <button onclick="exportReport()" title="Exporter CSV / JSON / Markdown">📤 Export</button>
-      <button id="precisionBtn" onclick="togglePrecision()" title="Tokens réels Copilot via OTel local">🎯 Plus précision</button>
-      <button class="primary" onclick="refresh()" title="Rafraîchir">🔄</button>
+    <div class="toolbar">
+      <div class="segment">
+        <button class="${this._period === 'today' ? 'active' : ''}" data-period="today">Today</button>
+        <button class="${this._period === 'week' ? 'active' : ''}" data-period="week">7 days</button>
+        <button class="${this._period === 'month' ? 'active' : ''}" data-period="month">30 days</button>
+      </div>
+      <button id="precisionBtn" class="precision-btn" data-mode="off" onclick="togglePrecision()" title="Real Copilot tokens via local OTel">🎯 Precision</button>
+      <div class="iconbar">
+        <button onclick="toggleTheme()" title="Toggle light/dark">${this._isDarkMode ? '☀️' : '🌙'}</button>
+        <button onclick="exportReport()" title="Export CSV / JSON / Markdown">📤</button>
+        <button onclick="refresh()" title="Refresh">🔄</button>
+      </div>
     </div>
   </div>
 
-  <div class="banner" id="banner">Chargement…</div>
-  <div id="content" class="loading"><p>Chargement des données…</p></div>
+  <div class="status-row" id="statusRow"></div>
+  <div id="content" class="loading"><p>Loading data…</p></div>
+  <div class="footer" id="footer"></div>
 
   <script>
     const vscode = acquireVsCodeApi();
     let chart = null;
-    let activePeriod = '${this._period}';
 
     document.querySelectorAll('[data-period]').forEach((btn) => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('[data-period]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        activePeriod = btn.dataset.period;
-        vscode.postMessage({ type: 'setPeriod', period: activePeriod });
+        vscode.postMessage({ type: 'setPeriod', period: btn.dataset.period });
       });
     });
 
@@ -255,7 +377,7 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
       const btn = document.getElementById('precisionBtn');
       if (btn?.dataset.mode === 'off') {
         vscode.postMessage({ type: 'enablePrecision' });
-      } else {
+      } else if (btn?.dataset.mode === 'on') {
         vscode.postMessage({ type: 'disablePrecision' });
       }
     }
@@ -278,32 +400,35 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
 
       if (btn) {
         if (!copilotEnabled) {
-          btn.textContent = '🎯 Copilot requis';
+          btn.textContent = '🎯 Copilot required';
           btn.disabled = true;
           btn.dataset.mode = 'disabled';
         } else if (precision?.status === 'otel') {
-          btn.textContent = '↩ Mode standard';
+          btn.textContent = '✓ Precision on';
           btn.disabled = false;
           btn.dataset.mode = 'on';
         } else {
-          btn.textContent = '🎯 Plus précision';
+          btn.textContent = '🎯 Precision';
           btn.disabled = false;
           btn.dataset.mode = 'off';
         }
       }
 
-      document.getElementById('banner').innerHTML =
-        '<strong>Source :</strong> ' + (dq.sourceLabel || '—') +
-        ' · <strong>Précision :</strong> ' + (dq.accuracyLabel || '—') +
-        ' · <strong>UI :</strong> ' + (document.documentElement.classList.contains('theme-dark') ? 'Dark' : 'Light') +
-        (precision?.collectorRunning ? ' · <strong>Collecteur :</strong> actif' : '');
+      const isReal = precision?.status === 'otel';
+      const isFallback = precision?.status === 'fallback';
+      document.getElementById('statusRow').innerHTML =
+        '<span class="pill"><span class="dot ' + (isReal ? 'ok' : isFallback ? 'warn' : 'info') + '"></span>' +
+          (dq.sourceLabel || 'No source') + '</span>' +
+        '<span class="pill">Accuracy: ' + (dq.accuracyLabel || '—') + '</span>' +
+        (precision?.collectorRunning ? '<span class="pill"><span class="dot ok"></span>Collector running</span>' : '');
 
-      const periodLabel = period === 'today' ? "aujourd'hui" : period === 'week' ? '7 jours' : '30 jours';
+      const periodLabel = period === 'today' ? 'today' : period === 'week' ? 'last 7 days' : 'last 30 days';
+
       const compareHtml = d.periodCompare ? \`
         <div class="card">
-          <div class="label">Comparaison · aujourd'hui vs hier</div>
+          <div class="label">Today vs yesterday</div>
           <table class="compare-table">
-            <thead><tr><th>Période</th><th class="num">Requêtes</th><th class="num">Tokens</th><th class="num">Coût est.</th></tr></thead>
+            <thead><tr><th>Period</th><th class="num">Requests</th><th class="num">Tokens</th><th class="num">Est. cost</th></tr></thead>
             <tbody>
               <tr><td><strong>\${d.periodCompare.currentLabel}</strong></td>
                 <td class="num">\${d.periodCompare.currentRequests}</td>
@@ -315,44 +440,64 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
                 <td class="num">\${fmtCost(d.periodCompare.previousCost)}</td></tr>
             </tbody>
           </table>
-          <div class="delta \${d.periodCompare.tokenDeltaPct > 0 ? 'up' : d.periodCompare.tokenDeltaPct < 0 ? 'down' : 'flat'}">
-            \${d.periodCompare.tokenDeltaPct > 0 ? '+' + d.periodCompare.tokenDeltaPct + '% tokens vs hier' :
-              d.periodCompare.tokenDeltaPct < 0 ? d.periodCompare.tokenDeltaPct + '% tokens vs hier' :
-              'stable vs hier'}
-          </div>
+          <span class="delta \${d.periodCompare.tokenDeltaPct > 0 ? 'up' : d.periodCompare.tokenDeltaPct < 0 ? 'down' : 'flat'}">
+            \${d.periodCompare.tokenDeltaPct > 0 ? '▲ +' + d.periodCompare.tokenDeltaPct + '% tokens vs yesterday' :
+              d.periodCompare.tokenDeltaPct < 0 ? '▼ ' + d.periodCompare.tokenDeltaPct + '% tokens vs yesterday' :
+              '— stable vs yesterday'}
+          </span>
         </div>\` : '';
 
-      const modelsHtml = (d.topModels || []).map((m) =>
-        '<div class="model-item"><span>' + m.model + '</span><span>' + fmtTok(m.tokens) + ' · ' + fmtCost(m.cost) + '</span></div>'
-      ).join('') || '<div class="hint">Pas encore de données modèle</div>';
+      const maxModel = Math.max(...(d.topModels || []).map((m) => m.tokens), 1);
+      const modelsHtml = (d.topModels || []).map((m) => \`
+        <div class="model-row">
+          <div class="model-head">
+            <span class="model-name">\${m.model}</span>
+            <span class="model-meta">\${fmtTok(m.tokens)} · \${fmtCost(m.cost)}</span>
+          </div>
+          <div class="bar-bg"><div class="bar-fill" style="width:\${Math.round((m.tokens / maxModel) * 100)}%"></div></div>
+        </div>\`).join('') || '<div class="hint">No model data yet — use Copilot or Claude, then Rescan Logs.</div>';
 
+      const budgetPct = Math.min(budgetStatus.percent, 100);
+      const budgetClass = budgetStatus.percent >= 100 ? 'over' : budgetStatus.percent >= 75 ? 'warn' : '';
+
+      document.getElementById('content').className = '';
       document.getElementById('content').innerHTML = \`
         <div class="hero">
-          <div class="card"><div class="label">Requêtes (\${periodLabel})</div>
+          <div class="card stat">
+            <div class="label">Requests · \${periodLabel}</div>
             <div class="value">\${dq.totalRequests || p.events || 0}</div>
-            <div class="hint">\${dq.estimatedRequests ? 'dont ~estimées (Chat.log)' : 'messages trackés'}</div></div>
-          <div class="card"><div class="label">Tokens total</div>
+            <div class="hint">\${dq.estimatedRequests ? 'includes ~estimated (Chat.log)' : 'tracked messages'}</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Total tokens</div>
             <div class="value">\${fmtTok(p.totalTokens)}</div>
-            <div class="hint">in \${fmtTok(p.inputTokens)} · out \${fmtTok(p.outputTokens)}</div></div>
-          <div class="card"><div class="label">Coût estimé</div>
+            <div class="hint">in \${fmtTok(p.inputTokens)} · out \${fmtTok(p.outputTokens)}</div>
+          </div>
+          <div class="card stat">
+            <div class="label">Estimated cost</div>
             <div class="value">\${fmtCost(p.cost)}</div>
-            <div class="hint">tarifs API publics</div></div>
+            <div class="hint">public API rates · not your Copilot bill</div>
+          </div>
         </div>
         \${compareHtml}
         <div class="card">
-          <div class="label">Tendance · \${periodLabel}</div>
+          <div class="label">Usage trend · \${periodLabel}</div>
           <div class="chart-box"><canvas id="usageChart"></canvas></div>
         </div>
         <div class="card">
-          <div class="label">Budget mensuel</div>
-          <div class="value" style="font-size:18px">\${fmtCost(p.cost)} / $\${budgetStatus.limit}</div>
-          <div class="budget-bar"><div class="budget-fill" style="width:\${Math.min(budgetStatus.percent, 100)}%"></div></div>
+          <div class="label">Monthly budget</div>
+          <div class="value" style="font-size:18px">\${fmtCost(p.cost)} <span style="font-size:12px;color:var(--muted);font-weight:600">/ $\${budgetStatus.limit}</span></div>
+          <div class="budget-bar"><div class="budget-fill \${budgetClass}" style="width:\${budgetPct}%"></div></div>
           <div class="hint">\${budgetStatus.message}</div>
         </div>
         <div class="card">
-          <div class="label">Modèles les plus utilisés</div>
+          <div class="label">Top models</div>
           \${modelsHtml}
         </div>\`;
+
+      document.getElementById('footer').textContent =
+        (d.lastIngest ? 'Last ingest: ' + new Date(d.lastIngest).toLocaleString('en-US') : 'Waiting for data') +
+        ' · Ctrl+Shift+T to reopen · Rescan Logs to rebuild';
 
       renderChart(chartSeries);
     }
@@ -362,10 +507,12 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
       if (!ctx || typeof Chart === 'undefined') return;
       if (chart) { chart.destroy(); chart = null; }
 
+      const css = getComputedStyle(document.documentElement);
       const isDark = document.documentElement.classList.contains('theme-dark');
-      const textColor = isDark ? '#ccc' : '#333';
-      const gridColor = isDark ? '#3e3e42' : '#d4d4d4';
-      const accent = isDark ? '#007acc' : '#0066cc';
+      const textColor = isDark ? '#8b93a7' : '#66708a';
+      const gridColor = isDark ? 'rgba(137,180,250,0.08)' : 'rgba(70,90,140,0.10)';
+      const accent = isDark ? '#89b4fa' : '#3b6fe0';
+      const fill = isDark ? 'rgba(137,180,250,0.14)' : 'rgba(59,111,224,0.12)';
 
       chart = new Chart(ctx, {
         type: 'line',
@@ -375,20 +522,27 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
             label: 'Tokens',
             data: series.data,
             borderColor: accent,
-            backgroundColor: isDark ? 'rgba(0,122,204,.12)' : 'rgba(0,102,204,.12)',
-            tension: 0.3,
+            borderWidth: 2,
+            backgroundColor: fill,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            tension: 0.35,
             fill: true
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
           plugins: { legend: { display: false } },
           scales: {
-            x: { ticks: { color: textColor, maxTicksLimit: 10 }, grid: { color: gridColor } },
+            x: {
+              ticks: { color: textColor, maxTicksLimit: 8, font: { size: 10 } },
+              grid: { display: false }
+            },
             y: {
               beginAtZero: true,
-              ticks: { color: textColor, callback: (v) => fmtTok(v) },
+              ticks: { color: textColor, font: { size: 10 }, callback: (v) => fmtTok(v) },
               grid: { color: gridColor }
             }
           }
@@ -432,9 +586,7 @@ function buildChartSeries(
     const dt = new Date();
     dt.setDate(dt.getDate() - i);
     dt.setHours(0, 0, 0, 0);
-    const key = dt.toISOString().slice(0, 10);
-    buckets.set(key, 0);
-    labels.push(`${dt.getMonth() + 1}/${dt.getDate()}`);
+    buckets.set(dt.toISOString().slice(0, 10), 0);
   }
 
   for (const e of events) {
@@ -448,6 +600,8 @@ function buildChartSeries(
   }
 
   for (const key of buckets.keys()) {
+    const dt = new Date(key);
+    labels.push(`${dt.getMonth() + 1}/${dt.getDate()}`);
     data.push(buckets.get(key) ?? 0);
   }
 
