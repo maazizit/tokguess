@@ -21,6 +21,12 @@ export class CopilotSettingsManager {
    * regardless; these settings only improve the chance VS Code emits OTel.
    */
   async inject(otlpEndpoint: string): Promise<InjectResult> {
+    // Hard guard: traces must never leave the machine.
+    const url = new URL(otlpEndpoint);
+    if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
+      throw new Error(`Refusing non-local OTLP endpoint: ${otlpEndpoint}`);
+    }
+
     const specs: SettingSpec[] = [
       { key: 'telemetry.telemetryLevel', value: 'all' },
       { key: 'telemetry.enableTelemetry', value: true },

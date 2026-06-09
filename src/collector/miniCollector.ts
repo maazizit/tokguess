@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as os from 'os';
@@ -8,6 +9,8 @@ const DEFAULT_OTLP_PORT = 4318;
 const DEFAULT_API_PORT = 4319;
 const MAX_SPANS = 5000;
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
+/** Reject OTLP payloads above this size — token spans are tiny. */
+const MAX_BODY_BYTES = 1024 * 1024;
 
 export class MiniCollector {
   private otlpServer?: http.Server;
@@ -17,14 +20,28 @@ export class MiniCollector {
   private otlpPort = DEFAULT_OTLP_PORT;
   private apiPort = DEFAULT_API_PORT;
   private storagePath: string;
+  private tokenPath: string;
+  private authToken = '';
 
   constructor(storageDir?: string) {
     const base = storageDir ?? path.join(os.homedir(), '.tokguess');
     if (!fs.existsSync(base)) {
-      fs.mkdirSync(base, { recursive: true });
+      fs.mkdirSync(base, { recursive: true, mode: 0o700 });
+    }
+    try {
+      fs.chmodSync(base, 0o700);
+    } catch {
+      /* best effort on non-POSIX */
     }
     this.storagePath = path.join(base, 'otel-spans.jsonl');
+    this.tokenPath = path.join(base, 'collector-token');
+    this.loadOrCreateToken();
     this.loadFromDisk();
+  }
+
+  /** Shared secret required on /v1/traces and /api/spans (Bearer). */
+  getAuthToken(): string {
+    return this.authToken;
   }
 
   getOtlpPort(): number {
@@ -55,7 +72,7 @@ export class MiniCollector {
       return;
     }
     this.otlpPort = await this.findPort(DEFAULT_OTLP_PORT);
-    this.apiPort = await this.findPort(DEFAULT_API_PORT);
+    this.apiPort = await this.findPort(Math.max(DEFAULT_API_PORT, this.otlpPort + 1));
 
     await new Promise<void>((resolve, reject) => {
       this.otlpServer = http.createServer((req, res) => this.handleOtlp(req, res));
@@ -83,11 +100,38 @@ export class MiniCollector {
     return this.spans.filter((s) => s.timestamp >= since);
   }
 
+  private isAuthorized(req: http.IncomingMessage): boolean {
+    const header = req.headers.authorization ?? '';
+    const expected = `Bearer ${this.authToken}`;
+    if (header.length !== expected.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(Buffer.from(header), Buffer.from(expected));
+  }
+
   private handleOtlp(req: http.IncomingMessage, res: http.ServerResponse): void {
     if (req.method === 'POST' && (req.url === '/v1/traces' || req.url?.endsWith('/v1/traces'))) {
+      if (!this.isAuthorized(req)) {
+        res.writeHead(401);
+        res.end('unauthorized');
+        return;
+      }
       const chunks: Buffer[] = [];
-      req.on('data', (c) => chunks.push(c));
+      let received = 0;
+      req.on('data', (c: Buffer) => {
+        received += c.length;
+        if (received > MAX_BODY_BYTES) {
+          res.writeHead(413);
+          res.end('payload too large');
+          req.destroy();
+          return;
+        }
+        chunks.push(c);
+      });
       req.on('end', () => {
+        if (received > MAX_BODY_BYTES) {
+          return;
+        }
         try {
           const raw = Buffer.concat(chunks).toString('utf8');
           const body = raw ? (JSON.parse(raw) as unknown) : {};
@@ -120,6 +164,10 @@ export class MiniCollector {
     }
 
     if (url.pathname === '/api/spans') {
+      if (!this.isAuthorized(req)) {
+        this.json(res, 401, { error: 'unauthorized' });
+        return;
+      }
       const since = Number(url.searchParams.get('since') ?? '0');
       this.json(res, 200, { spans: this.getSpansSince(since) });
       return;
@@ -157,6 +205,11 @@ export class MiniCollector {
       return;
     }
     try {
+      fs.chmodSync(this.storagePath, 0o600);
+    } catch {
+      /* best effort on non-POSIX */
+    }
+    try {
       const lines = fs.readFileSync(this.storagePath, 'utf8').split('\n').filter(Boolean);
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
       for (const line of lines) {
@@ -171,9 +224,33 @@ export class MiniCollector {
     }
   }
 
+  private loadOrCreateToken(): void {
+    try {
+      if (fs.existsSync(this.tokenPath)) {
+        const existing = fs.readFileSync(this.tokenPath, 'utf8').trim();
+        if (existing.length >= 32) {
+          this.authToken = existing;
+          fs.chmodSync(this.tokenPath, 0o600);
+          return;
+        }
+      }
+    } catch {
+      /* regenerate below */
+    }
+    this.authToken = crypto.randomBytes(24).toString('hex');
+    try {
+      fs.writeFileSync(this.tokenPath, this.authToken, { encoding: 'utf8', mode: 0o600 });
+    } catch {
+      /* in-memory token still works for this session */
+    }
+  }
+
   private appendDisk(span: CopilotSpanRecord): void {
     try {
-      fs.appendFileSync(this.storagePath, `${JSON.stringify(span)}\n`, 'utf8');
+      fs.appendFileSync(this.storagePath, `${JSON.stringify(span)}\n`, {
+        encoding: 'utf8',
+        mode: 0o600
+      });
     } catch {
       /* ignore */
     }
@@ -189,7 +266,7 @@ export class MiniCollector {
         fs.writeFileSync(
           this.storagePath,
           keep.map((s) => JSON.stringify(s)).join('\n') + '\n',
-          'utf8'
+          { encoding: 'utf8', mode: 0o600 }
         );
       }
     } catch {

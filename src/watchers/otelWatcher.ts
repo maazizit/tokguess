@@ -12,6 +12,7 @@ export class OtelWatcher implements vscode.Disposable {
   private fallbackTimer: ReturnType<typeof setInterval> | undefined;
   private processedIds = new Set<string>();
   private apiPort = 4319;
+  private authToken = '';
   private lastPollAt = 0;
 
   activate(context: vscode.ExtensionContext): void {
@@ -25,6 +26,10 @@ export class OtelWatcher implements vscode.Disposable {
 
   setApiPort(port: number): void {
     this.apiPort = port;
+  }
+
+  setAuthToken(token: string): void {
+    this.authToken = token;
   }
 
   startPolling(precision: PrecisionModeController): void {
@@ -91,6 +96,7 @@ export class OtelWatcher implements vscode.Disposable {
     return new Promise((resolve, reject) => {
       const req = http.get(
         `http://127.0.0.1:${this.apiPort}/api/spans?since=${since}`,
+        { headers: { Authorization: `Bearer ${this.authToken}` } },
         (res) => {
           const chunks: Buffer[] = [];
           res.on('data', (c) => chunks.push(c));

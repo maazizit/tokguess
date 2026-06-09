@@ -54,6 +54,7 @@ async function startPrecisionPipeline(): Promise<void> {
       miniCollector.getApiPort()
     );
     otelWatcher.setApiPort(miniCollector.getApiPort());
+    otelWatcher.setAuthToken(miniCollector.getAuthToken());
     otelWatcher.startPolling(precisionMode);
   } catch {
     precisionMode.checkFallback(true, 0);

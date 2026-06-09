@@ -1,8 +1,8 @@
 {
   "name": "tokguess-copilot",
   "displayName": "TokGuess",
-  "description": "Track Copilot, Claude & Antigravity CLI tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
-  "version": "0.6.3",
+  "description": "Track Copilot, Claude & Antigravity CLI tokens + Context Budget alerts before you send. Dashboard, optional local OTel precision mode (auth-protected, localhost-only), zero cloud.",
+  "version": "0.6.4",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"

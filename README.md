@@ -93,6 +93,30 @@ See [AMÉLIORATION-ESTIMATION.md](AMÉLIORATION-ESTIMATION.md) for technical det
 - **Antigravity CLI**: Real tokens from `usage`/`token_usage` fields, or content estimation → **95-100%** ✅
 - **File Estimator**: Character count ÷ 4.2 → **~90-95%** ✅
 
+## Precision Mode (OTel, experimental)
+
+Optional local OpenTelemetry collector for **real** token counts instead of estimation:
+
+- Enable via the 🎯 **Precision** button in the dashboard (Copilot must be enabled)
+- A mini collector starts on `127.0.0.1` (OTLP `4318`, read API `4319`) — guided 3-step wizard
+- Auto-fallback to Chat.log estimation if no traces arrive
+- Note: stock VS Code may not emit Copilot OTel traces (settings keys not registered on all versions). Claude Code supports OTel officially via env vars.
+
+## Security
+
+The precision collector is hardened by design:
+
+| Measure | Detail |
+|---------|--------|
+| **Localhost only** | Both servers bind `127.0.0.1` — no external network, ever. Non-local OTLP endpoints are rejected at startup. |
+| **Auth token** | Every request to `/v1/traces` and `/api/spans` requires a `Bearer` secret (auto-generated, stored in `~/.tokguess/collector-token`, mode `600`). Blocks local span injection. `/health` stays open (no sensitive data). |
+| **Allowlist scrubbing** | Only known-safe span attributes are kept (token counts, model, session/mode IDs). Prompts, code, messages, and any unknown attribute are dropped before storage. String values capped at 128 chars. |
+| **Payload cap** | OTLP requests above 1 MB are rejected (`413`) — token spans are tiny; oversized payloads never get parsed. |
+| **Strict file permissions** | `~/.tokguess` is `700`, `otel-spans.jsonl` and the token file are `600` — readable by your user only. |
+| **No prompt logging** | Never enable `OTEL_LOG_USER_PROMPTS` — TokGuess does not need or want prompt content. |
+
+Stored data is metadata only: timestamps, token counts, model names, hashed-safe session IDs. No code, no prompts, no secrets.
+
 ## Disclaimer
 
 - **Copilot tokens** = context-aware estimation (~75-85%), not official billing

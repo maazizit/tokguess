@@ -165,13 +165,17 @@ D’après traces Aspire observées :
 | durée span | fallback si tokens absents |
 | `session_id` | dédup |
 
-### 3.5 Sécurité (obligatoire)
+### 3.5 Sécurité (obligatoire) — durci v0.6.4
 
 | Règle | Implémentation |
 |-------|----------------|
 | Local only | collector bind `127.0.0.1` uniquement |
+| Endpoint verrouillé | `inject()` rejette tout endpoint OTLP non-localhost (throw) |
+| Auth token | Bearer secret requis sur `/v1/traces` + `/api/spans` (généré auto, `~/.tokguess/collector-token` mode 600, comparaison timing-safe). `/health` reste public (aucune donnée sensible) |
 | Pas de cloud | aucun export OTLP externe par défaut |
-| Scrubbing | supprimer attributs `prompt*`, `content*`, `message*` |
+| Scrubbing **allowlist** | seuls les attributs connus safe passent (tokens, modèle, session/mode id) — tout attribut inconnu est jeté; strings cap 128 chars |
+| Limite payload | requêtes OTLP > 1 Mo rejetées (413) avant parsing |
+| Permissions fichiers | `~/.tokguess` = 700, `otel-spans.jsonl` + token = 600 |
 | Rétention | max 7 jours, rotation 50 Mo |
 | Opt-in | jamais activé sans clic utilisateur |
 | Désactivation | 1 clic « Mode standard » revert settings |
