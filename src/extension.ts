@@ -79,7 +79,8 @@ export function activate(context: vscode.ExtensionContext): void {
     copilotWatcher,
     copilotLogWatcher,
     claudeWatcher,
-    antigravityWatcher
+    antigravityWatcher,
+    reportExporter
   );
 
   const ingest = (event: Parameters<UsageStore['add']>[0]) => {

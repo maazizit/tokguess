@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { UsageStore } from '../storage/usageStore';
 import { TokenEvent, DayStats } from '../types';
@@ -132,10 +133,9 @@ export class ReportExporter {
 
     // Step 4: Choose save location
     const defaultFileName = `tokguess-report-${period.value}-${Date.now()}.${format.value}`;
+    const saveDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir();
     const uri = await vscode.window.showSaveDialog({
-      defaultUri: vscode.Uri.file(
-        path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '', defaultFileName)
-      ),
+      defaultUri: vscode.Uri.file(path.join(saveDir, defaultFileName)),
       filters: this.getFilters(format.value)
     });
 

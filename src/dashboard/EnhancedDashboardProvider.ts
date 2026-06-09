@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { getContextBudgetSnapshot } from '../contextBudget';
 import { BudgetManager } from '../budget/budgetManager';
+import { ReportExporter } from '../export/reportExporter';
 import { UsageStore } from '../storage/usageStore';
 import { TokenEvent } from '../types';
 import { AntigravityWatcher } from '../watchers/antigravityWatcher';
@@ -24,7 +25,8 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
     private readonly copilot: CopilotWatcher,
     private readonly copilotLog: CopilotLogWatcher,
     private readonly claude: ClaudeWatcher,
-    private readonly antigravity: AntigravityWatcher
+    private readonly antigravity: AntigravityWatcher,
+    private readonly reportExporter: ReportExporter
   ) {
     store.onChange(() => void this.refresh());
   }
@@ -49,7 +51,7 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
           await this.refresh();
           break;
         case 'export':
-          await this.exportData(data.format);
+          await this.reportExporter.exportReport();
           break;
         case 'setPeriod':
           if (['today', 'week', 'month'].includes(data.period)) {
@@ -118,37 +120,6 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
         chart
       }
     });
-  }
-
-  private async exportData(format: 'csv' | 'json'): Promise<void> {
-    const events = this.store.getEvents();
-    const lines = ['timestamp,source,model,input,output,cost'];
-    for (const e of events) {
-      const cost = (
-        (e.inputTokens + e.outputTokens + e.cacheReadTokens) * 0.000003
-      ).toFixed(6);
-      lines.push(
-        [
-          new Date(e.timestamp).toISOString(),
-          e.source,
-          e.model ?? '',
-          e.inputTokens,
-          e.outputTokens,
-          cost
-        ].join(',')
-      );
-    }
-    const content = format === 'json' ? JSON.stringify(events, null, 2) : lines.join('\n');
-
-    const uri = await vscode.window.showSaveDialog({
-      defaultUri: vscode.Uri.file(`tokguess-export.${format}`),
-      filters: { [format.toUpperCase()]: [format] }
-    });
-
-    if (uri) {
-      await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
-      void vscode.window.showInformationMessage(`Exported to ${uri.fsPath}`);
-    }
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
@@ -229,7 +200,8 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
       <button class="chip${this._period === 'week' ? ' active' : ''}" data-period="week">7 jours</button>
       <button class="chip${this._period === 'month' ? ' active' : ''}" data-period="month">30 jours</button>
       <button onclick="toggleTheme()">${this._isDarkMode ? '☀️ Light' : '🌙 Dark'}</button>
-      <button class="primary" onclick="refresh()">🔄</button>
+      <button onclick="exportReport()" title="Exporter CSV / JSON / Markdown">📤 Export</button>
+      <button class="primary" onclick="refresh()" title="Rafraîchir">🔄</button>
     </div>
   </div>
 
@@ -256,6 +228,7 @@ export class EnhancedDashboardProvider implements vscode.WebviewViewProvider {
 
     function toggleTheme() { vscode.postMessage({ type: 'toggleTheme' }); }
     function refresh() { vscode.postMessage({ type: 'refresh' }); }
+    function exportReport() { vscode.postMessage({ type: 'export' }); }
 
     function fmtTok(n) {
       if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
