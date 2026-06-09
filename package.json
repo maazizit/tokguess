@@ -2,7 +2,7 @@
   "name": "tokguess-copilot",
   "displayName": "TokGuess",
   "description": "Track Copilot, Claude & Antigravity CLI tokens + Context Budget alerts before you send. Dashboard, session logs, zero cloud.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "maazizit",
   "engines": {
     "vscode": "^1.80.0"
@@ -12,8 +12,8 @@
     "Machine Learning"
   ],
   "galleryBanner": {
-    "color": "#1e1e2e",
-    "theme": "dark"
+    "color": "#f8b4d9",
+    "theme": "light"
   },
   "icon": "media/icon.png",
   "keywords": [
