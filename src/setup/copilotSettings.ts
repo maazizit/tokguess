@@ -20,18 +20,18 @@ export class CopilotSettingsManager {
    * VS Code / Copilot version) are skipped silently — the collector works
    * regardless; these settings only improve the chance VS Code emits OTel.
    */
-  async inject(otlpEndpoint: string): Promise<InjectResult> {
-    // Hard guard: traces must never leave the machine.
-    const url = new URL(otlpEndpoint);
-    if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
-      throw new Error(`Refusing non-local OTLP endpoint: ${otlpEndpoint}`);
-    }
-
+  /**
+   * Official Copilot Chat OTel settings (vscode-copilot-chat agent_monitoring):
+   * we use the `file` exporter — Copilot writes spans as JSON-lines to a local
+   * file that TokGuess tails. No open port, no protobuf, maximum privacy.
+   * captureContent stays false (default): no prompts/responses ever exported.
+   */
+  async inject(outfilePath: string): Promise<InjectResult> {
     const specs: SettingSpec[] = [
-      { key: 'telemetry.telemetryLevel', value: 'all' },
-      { key: 'telemetry.enableTelemetry', value: true },
-      { key: 'github.copilot.chat.logging', value: true },
-      { key: 'opentelemetry.exporter.otlp.endpoint', value: otlpEndpoint }
+      { key: 'github.copilot.chat.otel.enabled', value: true },
+      { key: 'github.copilot.chat.otel.exporterType', value: 'file' },
+      { key: 'github.copilot.chat.otel.outfile', value: outfilePath },
+      { key: 'github.copilot.chat.otel.captureContent', value: false }
     ];
 
     const config = vscode.workspace.getConfiguration();

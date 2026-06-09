@@ -18,6 +18,7 @@ import { PrecisionModeController } from './precision/precisionMode';
 import { CopilotSettingsManager } from './setup/copilotSettings';
 import { PrecisionWizard } from './setup/precisionWizard';
 import { CopilotLogWatcher } from './watchers/copilotLogWatcher';
+import { CopilotOtelFileWatcher } from './watchers/copilotOtelFileWatcher';
 import { CopilotWatcher } from './watchers/copilotWatcher';
 import { OtelWatcher } from './watchers/otelWatcher';
 
@@ -39,15 +40,19 @@ let cacheDetector: CacheDetector;
 let precisionMode: PrecisionModeController;
 let miniCollector: MiniCollector;
 let otelWatcher: OtelWatcher;
+let otelFileWatcher: CopilotOtelFileWatcher;
 let precisionWizard: PrecisionWizard;
 let copilotSettings: CopilotSettingsManager;
 let enabled = true;
 
 async function startPrecisionPipeline(): Promise<void> {
   try {
+    // Primary path: Copilot's official OTel file exporter → tail JSONL.
+    await copilotSettings.inject(otelFileWatcher.getPath());
+    otelFileWatcher.start(precisionMode);
+
+    // Secondary path: local OTLP collector (e.g. Claude Code, colleagues' tools).
     await miniCollector.start();
-    const otlp = `http://127.0.0.1:${miniCollector.getOtlpPort()}/v1/traces`;
-    await copilotSettings.inject(otlp);
     precisionMode.setCollectorRunning(
       true,
       miniCollector.getOtlpPort(),
@@ -95,6 +100,7 @@ export function activate(context: vscode.ExtensionContext): void {
   precisionMode = new PrecisionModeController(context);
   miniCollector = new MiniCollector();
   otelWatcher = new OtelWatcher();
+  otelFileWatcher = new CopilotOtelFileWatcher();
   copilotSettings = new CopilotSettingsManager(context);
   precisionWizard = new PrecisionWizard(miniCollector, precisionMode, copilotSettings);
   otelWatcher.activate(context);
@@ -153,6 +159,7 @@ export function activate(context: vscode.ExtensionContext): void {
       copilotLogWatcher.activate(context);
     }
     otelWatcher.onEvent(ingest);
+    otelFileWatcher.onEvent(ingest);
   }
 
   if (config().get('sources.claude.enabled', true)) {
@@ -194,6 +201,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('tokguess.disablePrecision', async () => {
       otelWatcher.stopPolling();
+      otelFileWatcher.stop();
       await precisionWizard.disable();
       refreshUi();
     }),
@@ -397,6 +405,7 @@ export function activate(context: vscode.ExtensionContext): void {
     claudeWatcher,
     antigravityWatcher,
     otelWatcher,
+    otelFileWatcher,
     statusBar
   );
 
@@ -409,6 +418,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 export function deactivate(): void {
   otelWatcher?.dispose();
+  otelFileWatcher?.dispose();
   void miniCollector?.stop();
   copilotWatcher?.dispose();
   copilotLogWatcher?.dispose();

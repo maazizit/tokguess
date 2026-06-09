@@ -93,14 +93,16 @@ See [AMÉLIORATION-ESTIMATION.md](AMÉLIORATION-ESTIMATION.md) for technical det
 - **Antigravity CLI**: Real tokens from `usage`/`token_usage` fields, or content estimation → **95-100%** ✅
 - **File Estimator**: Character count ÷ 4.2 → **~90-95%** ✅
 
-## Precision Mode (OTel, experimental)
+## Precision Mode (OTel)
 
-Optional local OpenTelemetry collector for **real** token counts instead of estimation:
+**Real** Copilot token counts via Copilot Chat's [official OpenTelemetry export](https://code.visualstudio.com/docs/agents/guides/monitoring-agents):
 
-- Enable via the 🎯 **Precision** button in the dashboard (Copilot must be enabled)
-- A mini collector starts on `127.0.0.1` (OTLP `4318`, read API `4319`) — guided 3-step wizard
-- Auto-fallback to Chat.log estimation if no traces arrive
-- Note: stock VS Code may not emit Copilot OTel traces (settings keys not registered on all versions). Claude Code supports OTel officially via env vars.
+- Enable via the 🎯 **Precision** button in the dashboard — guided 3-step wizard, then Reload Window
+- TokGuess sets `github.copilot.chat.otel.enabled` + the **file exporter**: Copilot writes spans (token counts, model, session) to `~/.tokguess/copilot-otel.jsonl`, TokGuess tails it — no protobuf, no extra port for Copilot
+- `captureContent` stays `false`: prompts/responses are never exported
+- A local OTLP collector also runs on `127.0.0.1:4318` for other OTel sources (e.g. Claude Code via `OTEL_EXPORTER_OTLP_ENDPOINT`)
+- Auto-fallback to Chat.log estimation if no spans arrive
+- Requires a recent GitHub Copilot Chat extension (otel settings)
 
 ## Security
 

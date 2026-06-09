@@ -2,6 +2,7 @@ import * as http from 'http';
 import * as vscode from 'vscode';
 import { MiniCollector } from '../collector/miniCollector';
 import { PrecisionModeController } from '../precision/precisionMode';
+import { CopilotOtelFileWatcher } from '../watchers/copilotOtelFileWatcher';
 import { CopilotSettingsManager } from './copilotSettings';
 
 export class PrecisionWizard {
@@ -21,7 +22,7 @@ export class PrecisionWizard {
     }
 
     const step1 = await vscode.window.showInformationMessage(
-      'TokGuess — Precision Mode (1/3)\n\nTokGuess will enable VS Code telemetry to read real Copilot token counts. Everything stays on localhost.',
+      'TokGuess — Precision Mode (1/3)\n\nTokGuess will enable Copilot Chat\'s official OpenTelemetry export (file mode) to read real token counts. No prompts or code are captured. Everything stays on your machine.',
       { modal: true },
       'Continue'
     );
@@ -44,17 +45,17 @@ export class PrecisionWizard {
     }
 
     // Settings injection is best-effort: unregistered keys are skipped
-    // (depends on VS Code/Copilot version), never blocks the wizard.
-    const otlp = `http://127.0.0.1:${this.collector.getOtlpPort()}/v1/traces`;
-    const result = await this.settings.inject(otlp);
+    // (requires a recent Copilot Chat version), never blocks the wizard.
+    const outfile = CopilotOtelFileWatcher.defaultPath();
+    const result = await this.settings.inject(outfile);
     if (result.skipped.length > 0 && result.applied.length === 0) {
       void vscode.window.showWarningMessage(
-        'TokGuess: your VS Code version does not expose OTel telemetry settings. The collector is running, but Copilot may not emit traces — auto fallback to estimation.'
+        'TokGuess: your Copilot Chat version does not expose github.copilot.chat.otel.* settings. Update the GitHub Copilot Chat extension, then retry — falling back to estimation meanwhile.'
       );
     }
 
     const step2 = await vscode.window.showInformationMessage(
-      `TokGuess — Precision Mode (2/3)\n\nLocal collector running on 127.0.0.1:${this.collector.getOtlpPort()}.\nNo data leaves your machine.`,
+      `TokGuess — Precision Mode (2/3)\n\nCopilot will write real token spans to:\n${outfile}\n\nLocal OTLP collector also running on 127.0.0.1:${this.collector.getOtlpPort()} (for Claude Code & friends).\nNo data leaves your machine.`,
       { modal: true },
       'Verify'
     );
@@ -67,8 +68,8 @@ export class PrecisionWizard {
     const healthy = await this.healthCheck();
     const step3 = await vscode.window.showInformationMessage(
       healthy
-        ? 'TokGuess — Precision Mode (3/3)\n\n✅ Collector connected. Use Copilot, then Reload Window to finish.'
-        : 'TokGuess — Precision Mode (3/3)\n\n⚠️ Collector ready but no traces yet. Reload Window, then use Copilot.',
+        ? 'TokGuess — Precision Mode (3/3)\n\n✅ Ready. Reload Window so Copilot starts exporting, then use Copilot Chat — real tokens will appear in the dashboard.'
+        : 'TokGuess — Precision Mode (3/3)\n\n⚠️ Setup applied but collector not responding. Reload Window, then use Copilot.',
       { modal: true },
       'Reload Window',
       'Later'

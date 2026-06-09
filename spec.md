@@ -140,6 +140,15 @@ Si collector down OU pas de spans depuis 5 min
 
 ### 3.3 Settings VS Code injectés (pré-configurés)
 
+> **Mise à jour v0.6.5 :** Copilot Chat expose un export OTel **officiel**
+> (`github.copilot.chat.otel.*`). TokGuess utilise le **file exporter** :
+> Copilot écrit ses spans (tokens réels, modèle, session) en JSON-lines dans
+> `~/.tokguess/copilot-otel.jsonl`, TokGuess taile le fichier. `captureContent`
+> reste `false` (aucun prompt exporté). Le collecteur OTLP local reste actif
+> pour les autres sources (Claude Code, etc.). Les anciennes clés
+> (`github.copilot.chat.logging`, `opentelemetry.exporter.otlp.endpoint`)
+> étaient incorrectes et ont été remplacées.
+
 TokGuess écrit dans `settings.json` (workspace ou user, configurable) :
 
 ```json
