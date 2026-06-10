@@ -151,6 +151,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   };
 
+  // OTEL watchers handle both Copilot and Claude Code spans — register unconditionally.
+  otelWatcher.onEvent(ingest);
+  otelFileWatcher.onEvent(ingest);
+
   if (config().get('sources.copilot.enabled', true)) {
     copilotWatcher.onEvent(ingest);
     copilotWatcher.activate(context);
@@ -158,8 +162,6 @@ export function activate(context: vscode.ExtensionContext): void {
       copilotLogWatcher.onEvent(ingest);
       copilotLogWatcher.activate(context);
     }
-    otelWatcher.onEvent(ingest);
-    otelFileWatcher.onEvent(ingest);
   }
 
   if (config().get('sources.claude.enabled', true)) {

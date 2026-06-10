@@ -13,6 +13,7 @@ export interface CopilotSpanRecord {
   model?: string;
   agentMode?: string;
   sessionId?: string;
+  source?: 'copilot' | 'claude';
 }
 
 interface OtlpSpan {
@@ -37,23 +38,44 @@ function nanoToMs(nano?: string): number {
   return Math.floor(Number(nano) / 1_000_000);
 }
 
-function isCopilotSpan(name: string, attrs: OtelAttribute[]): boolean {
+function detectSpanSource(
+  name: string,
+  attrs: OtelAttribute[]
+): 'copilot' | 'claude' | null {
   const n = name.toLowerCase();
-  if (n.includes('copilot') || n.includes('invoke_agent')) {
-    return true;
+
+  // Claude Code spans: span name or gen_ai.system = anthropic/claude
+  if (n.includes('claude') || n.includes('anthropic')) {
+    return 'claude';
   }
-  return attrs.some(
-    (a) =>
-      a.key.includes('copilot') ||
-      a.key.includes('copilot_chat') ||
-      a.key === 'gen_ai.system'
-  );
+  const genAiSystem = attrs.find((a) => a.key === 'gen_ai.system');
+  if (genAiSystem) {
+    const sys = String(
+      genAiSystem.value.stringValue ?? genAiSystem.value.intValue ?? ''
+    ).toLowerCase();
+    if (sys.includes('anthropic') || sys.includes('claude')) {
+      return 'claude';
+    }
+    // Any other gen_ai.system value → treat as Copilot
+    return 'copilot';
+  }
+
+  // Copilot spans
+  if (n.includes('copilot') || n.includes('invoke_agent')) {
+    return 'copilot';
+  }
+  if (attrs.some((a) => a.key.includes('copilot') || a.key.includes('copilot_chat'))) {
+    return 'copilot';
+  }
+
+  return null;
 }
 
 function parseSpan(span: OtlpSpan): CopilotSpanRecord | null {
   const name = span.name ?? '';
   const rawAttrs = span.attributes ?? [];
-  if (!isCopilotSpan(name, rawAttrs)) {
+  const source = detectSpanSource(name, rawAttrs);
+  if (!source) {
     return null;
   }
 
@@ -104,7 +126,8 @@ function parseSpan(span: OtlpSpan): CopilotSpanRecord | null {
     outputTokens: output,
     model: attrString(attrs, 'gen_ai.request.model', 'model', 'model.name'),
     agentMode: attrString(attrs, 'copilot_chat.mode_name', 'agent', 'mode_name'),
-    sessionId: attrString(attrs, 'copilot_chat.session_id', 'session_id', 'session.id')
+    sessionId: attrString(attrs, 'copilot_chat.session_id', 'session_id', 'session.id'),
+    source
   };
 }
 

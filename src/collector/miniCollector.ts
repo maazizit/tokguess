@@ -153,6 +153,81 @@ export class MiniCollector {
   private handleApi(req: http.IncomingMessage, res: http.ServerResponse): void {
     const url = new URL(req.url ?? '/', `http://127.0.0.1:${this.apiPort}`);
 
+    if (url.pathname === '/' || url.pathname === '') {
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TokGuess Collector</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+    h1 { color: #f8b4d9; }
+    .card { background: #2d2d2d; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #f8b4d9; }
+    .status { display: inline-block; padding: 4px 12px; border-radius: 12px; background: #4ade80; color: #000; font-weight: 600; font-size: 0.9em; }
+    code { background: #3c3c3c; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+    pre { background: #0d0d0d; padding: 15px; border-radius: 6px; overflow-x: auto; }
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .endpoint { margin: 15px 0; }
+    .method { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85em; }
+    .get { background: #3b82f6; color: white; }
+    .post { background: #10b981; color: white; }
+    .locked { color: #f59e0b; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h1>🎯 TokGuess Collector</h1>
+  <div class="card">
+    <p><span class="status">● RUNNING</span></p>
+    <p><strong>Spans collected:</strong> ${this.spans.length} / ${MAX_SPANS}</p>
+    <p><strong>OTLP Port:</strong> ${this.otlpPort}</p>
+    <p><strong>API Port:</strong> ${this.apiPort}</p>
+  </div>
+
+  <div class="card">
+    <h2>📡 Available Endpoints</h2>
+    
+    <div class="endpoint">
+      <span class="method get">GET</span> <code>/health</code>
+      <p>Health check (no auth required)</p>
+      <a href="/health" target="_blank">→ Test it</a>
+    </div>
+
+    <div class="endpoint">
+      <span class="method get">GET</span> <code>/api/spans?since=0</code>
+      <p class="locked">🔒 Requires Bearer authentication</p>
+    </div>
+
+    <div class="endpoint">
+      <span class="method post">POST</span> <code>/v1/traces</code>
+      <p class="locked">🔒 OTLP endpoint (requires Bearer authentication)</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>💡 Usage</h2>
+    <p>This is TokGuess's local OpenTelemetry collector. It receives token usage data from:</p>
+    <ul>
+      <li><strong>Copilot Chat</strong> via file export (OTel)</li>
+      <li><strong>Claude Code</strong> or other tools via OTLP (HTTP)</li>
+    </ul>
+    <p>All data stays on your machine. Nothing leaves <code>127.0.0.1</code>.</p>
+    
+    <h3>Test with curl:</h3>
+    <pre>curl http://localhost:${this.apiPort}/health</pre>
+  </div>
+
+  <div class="card" style="border-left-color: #60a5fa;">
+    <p style="margin: 0;">⚡ Managed by <strong>TokGuess VS Code Extension</strong></p>
+  </div>
+</body>
+</html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    }
+
     if (url.pathname === '/health') {
       this.json(res, 200, {
         ok: true,

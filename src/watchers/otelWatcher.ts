@@ -130,7 +130,7 @@ function spanToEvent(span: CopilotSpanRecord): TokenEvent {
   return {
     id: span.id,
     timestamp: span.timestamp,
-    source: 'copilot',
+    source: span.source ?? 'copilot',
     type: 'message',
     model: span.model ?? 'copilot',
     inputTokens: span.inputTokens,

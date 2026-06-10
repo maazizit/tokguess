@@ -9,3 +9,10 @@ demo-improvements.*
 AMÉLIORATION-ESTIMATION.md
 PUBLISH.md
 tokguess-copilot-*.vsix
+.venv/**
+.venv/
+__pycache__/**
+*.pyc
+.pytest_cache/**
+.coverage
+htmlcov/**

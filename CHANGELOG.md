@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.6.6] - 2026-06-10
+
+### ✨ New Features
+
+#### Collector Status Page 🌐
+- ✅ **NEW: Web Dashboard for Local Collector** - Visit http://localhost:4319 to see:
+  - Real-time collector status and span count
+  - Available API endpoints documentation
+  - Health check with direct test link
+  - Usage instructions and examples
+- ✅ **Beautiful UI** - Dark-themed interface matching VS Code
+- ✅ **Live Stats** - Shows number of spans collected (x / 5000)
+- ✅ **Security Info** - Displays which endpoints require authentication
+
+#### Diagnostic Tools 🔍
+- ✅ **NEW: check-precision.sh Script** - Comprehensive diagnostic tool that checks:
+  - VS Code OTel settings configuration
+  - Local collector ports (4318, 4319)
+  - Health check API status
+  - Copilot OTel file existence and activity
+  - Installed extensions versions
+  - Complete summary with actionable recommendations
+- ✅ **Automated Troubleshooting** - Helps users verify precision mode setup
+- ✅ **Useful Commands** - Provides ready-to-use terminal commands
+
+### 🎯 Improvements
+
+- **Better localhost Experience** - No more 404 on http://localhost:4319
+- **Enhanced Debugging** - Easier to verify precision mode is working
+- **User-Friendly Setup** - Diagnostic script helps identify configuration issues
+- **Documentation** - Built-in API documentation on the collector page
+
+### 🐛 Bug Fixes
+
+- Fixed 404 error when accessing collector root URL
+- Improved error messages for precision mode setup
+
+---
+
 ## [0.5.1] - 2026-06-09
 
 ### 🎨 Major UI Improvements
