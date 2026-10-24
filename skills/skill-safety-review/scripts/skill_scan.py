@@ -69,7 +69,7 @@ INJECTION_RULES = [
     ("INJ-009", "high", "prompt-injection", r"<!--[\s\S]{0,400}?(ignore|instruction|system|execute|run|send|curl|secret|token)[\s\S]{0,400}?-->", "Instruction hidden in an HTML comment"),
 ]
 
-HIDDEN_CHARS = re.compile("[​‌‍⁠﻿‪-‮⁦-⁩]")
+HIDDEN_CHARS = re.compile("[\u200b\u200c\u200d\u2060\ufeff\u202a-\u202e\u2066-\u2069]")
 TAG_CHARS = re.compile("[\U000e0000-\U000e007f]")
 
 
